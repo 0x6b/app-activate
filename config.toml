@@ -1,0 +1,6 @@
+leader_key = "F9"
+timeout_ms = 500
+
+[applications]
+f = "/Applications/Firefox.app"
+t = "/Applications/Ghostty.app"

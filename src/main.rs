@@ -32,7 +32,7 @@ fn main() -> Result<()> {
 
                 // Set the appropriate control flow based on new state
                 match &manager.state {
-                    State::LeaderKeyPressed { .. } => {
+                    State::AwaitingSecondKey { .. } => {
                         debug!("Waiting until timeout");
                         event_loop.set_control_flow(ControlFlow::WaitUntil(
                             Instant::now() + manager.timeout,
@@ -46,12 +46,10 @@ fn main() -> Result<()> {
             }
 
             // Check for timeout if in LeaderPressed state
-            if let State::LeaderKeyPressed { time, .. } = &manager.state {
-                if time.elapsed() > manager.timeout {
-                    debug!("Leader key timeout. Resetting state");
-                    manager.reset_state();
-                    event_loop.set_control_flow(ControlFlow::Wait);
-                }
+            if manager.is_timed_out() {
+                debug!("Leader key timeout. Resetting state");
+                manager.reset_state();
+                event_loop.set_control_flow(ControlFlow::Wait);
             }
         }
     })?;

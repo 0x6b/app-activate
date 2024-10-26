@@ -15,7 +15,7 @@ use crate::Config;
 #[derive(Debug)]
 pub enum State {
     Waiting,
-    LeaderKeyPressed { time: Instant },
+    AwaitingSecondKey { pressed_at: Instant, registered_keys: Vec<HotKey> },
 }
 
 pub struct HotKeyManager {
@@ -54,18 +54,32 @@ impl HotKeyManager {
         })
     }
 
+    pub fn is_timed_out(&self) -> bool {
+        match self.state {
+            State::AwaitingSecondKey { pressed_at, .. } => pressed_at.elapsed() > self.timeout,
+            _ => false,
+        }
+    }
+
     pub fn handle(&mut self, event: GlobalHotKeyEvent) {
         debug!("Handling GlobalHotKeyEvent: {event:?}");
         match &mut self.state {
             State::Waiting if event.id == self.leader_key.id() => {
                 trace!("{:?}", event);
-                for (hotkey, _path) in &self.applications {
-                    trace!("registering second shot hotkey: {hotkey:?}");
-                    self.manager.register(*hotkey).unwrap();
-                }
-                self.state = State::LeaderKeyPressed { time: Instant::now() };
+                let registered_keys = self
+                    .applications
+                    .iter()
+                    .map(|(hotkey, _)| {
+                        trace!("registering second shot hotkey: {hotkey:?}");
+                        self.manager.register(*hotkey).unwrap();
+                        *hotkey
+                    })
+                    .collect();
+
+                self.state =
+                    State::AwaitingSecondKey { pressed_at: Instant::now(), registered_keys };
             }
-            State::LeaderKeyPressed { .. } => {
+            State::AwaitingSecondKey { .. } => {
                 if let Some((_, path)) =
                     self.applications.iter().find(|(hotkey, _)| hotkey.id() == event.id)
                 {
@@ -74,7 +88,7 @@ impl HotKeyManager {
                         Ok(()) => debug!("Successfully launched {path:?}"),
                         Err(err) => error!("Failed to launch {path:?}: {err}"),
                     }
-                    self.reset_state()
+                    self.reset_state();
                 }
             }
             _ => {}
@@ -83,10 +97,12 @@ impl HotKeyManager {
     }
 
     pub fn reset_state(&mut self) {
-        self.state = State::Waiting;
-        for (hotkey, _) in &self.applications {
-            trace!("unregistering {hotkey:?}");
-            self.manager.unregister(*hotkey).unwrap();
+        if let State::AwaitingSecondKey { registered_keys, .. } = &self.state {
+            for hotkey in registered_keys {
+                trace!("unregistering {hotkey:?}");
+                self.manager.unregister(*hotkey).unwrap();
+            }
         }
+        self.state = State::Waiting;
     }
 }

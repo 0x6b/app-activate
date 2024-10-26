@@ -1,7 +1,7 @@
 use std::{
     collections::BTreeMap,
     fs::read_to_string,
-    path::{Path, PathBuf},
+    path::PathBuf,
     str::FromStr,
     time::{Duration, Instant},
 };
@@ -22,7 +22,7 @@ use winit::{
 #[derive(Debug)]
 enum ShortcutState {
     Waiting,
-    LeaderPressed { time: Instant, id: u32 },
+    LeaderKeyPressed { time: Instant },
 }
 
 struct ShortcutManager {
@@ -34,44 +34,6 @@ struct ShortcutManager {
 }
 
 impl ShortcutManager {
-    fn handle(&mut self, event: GlobalHotKeyEvent) {
-        debug!("Handling GlobalHotKeyEvent: {event:?}");
-        match &mut self.state {
-            ShortcutState::Waiting => {
-                if event.id == self.leader_key.id() {
-                    trace!("{:?}", event);
-                    for (hotkey, _path) in &self.applications {
-                        trace!("registering {hotkey:?}");
-                        self.manager.register(*hotkey).unwrap();
-                    }
-                    self.state =
-                        ShortcutState::LeaderPressed { time: Instant::now(), id: event.id };
-                }
-            }
-            ShortcutState::LeaderPressed { time, id: _id } => {
-                if time.elapsed() > self.timeout {
-                    for (hotkey, _) in &self.applications {
-                        trace!("deregistering {hotkey:?}");
-                        self.manager.unregister(*hotkey).unwrap();
-                    }
-                    self.state = ShortcutState::Waiting;
-                } else if let Some((_, path)) =
-                    self.applications.iter().find(|(hotkey, _)| hotkey.id() == event.id)
-                {
-                    debug!("found hotkey for {:?}", path);
-                    match open::that(path) {
-                        Ok(()) => debug!("Successfully launched {path:?}"),
-                        Err(err) => error!("Failed to launch {path:?}: {err}"),
-                    }
-                    self.state = ShortcutState::Waiting;
-                    for (hotkey, _) in &self.applications {
-                        self.manager.unregister(*hotkey).unwrap();
-                    }
-                }
-            }
-        }
-    }
-
     fn from_config(config: Config) -> Result<Self> {
         debug!("{config:?}");
         let manager = GlobalHotKeyManager::new()?;
@@ -87,7 +49,7 @@ impl ShortcutManager {
                 .applications
                 .iter()
                 .map(|(key, path)| {
-                    // check if the key is in 'A'..'Z'
+                    // add `Key` prefix if the specified key is in 'A' to 'Z'
                     let key = if key.len() == 1 && key.is_ascii() {
                         format!("Key{}", key.to_ascii_uppercase())
                     } else {
@@ -97,6 +59,42 @@ impl ShortcutManager {
                 })
                 .collect::<Vec<(_, _)>>(),
         })
+    }
+
+    fn handle(&mut self, event: GlobalHotKeyEvent) {
+        debug!("Handling GlobalHotKeyEvent: {event:?}");
+        match &mut self.state {
+            ShortcutState::Waiting if event.id == self.leader_key.id() => {
+                trace!("{:?}", event);
+                for (hotkey, _path) in &self.applications {
+                    trace!("registering second shot hotkey: {hotkey:?}");
+                    self.manager.register(*hotkey).unwrap();
+                }
+                self.state = ShortcutState::LeaderKeyPressed { time: Instant::now() };
+            }
+            ShortcutState::LeaderKeyPressed { .. } => {
+                if let Some((_, path)) =
+                    self.applications.iter().find(|(hotkey, _)| hotkey.id() == event.id)
+                {
+                    debug!("found hotkey for {:?}", path);
+                    match open::that(path) {
+                        Ok(()) => debug!("Successfully launched {path:?}"),
+                        Err(err) => error!("Failed to launch {path:?}: {err}"),
+                    }
+                    self.reset_state()
+                }
+            }
+            _ => {}
+        }
+        trace!("Done. State: {:?}", self.state);
+    }
+
+    fn reset_state(&mut self) {
+        self.state = ShortcutState::Waiting;
+        for (hotkey, _) in &self.applications {
+            trace!("unregistering {hotkey:?}");
+            self.manager.unregister(*hotkey).unwrap();
+        }
     }
 }
 
@@ -114,16 +112,33 @@ fn main() -> Result<()> {
     let mut manager = ShortcutManager::from_config(config)?;
 
     EventLoopBuilder::new().build()?.run(move |event, event_loop| {
-        event_loop.set_control_flow(ControlFlow::Wait);
-        if let Event::AboutToWait { .. } = event {
-            trace!("Woke up");
+        if event == Event::AboutToWait {
+            // Check for hotkey events
             if let Ok(event) = GlobalHotKeyEvent::receiver().try_recv() {
+                debug!("Received hotkey event: {event:?}");
                 manager.handle(event);
 
-                // Set wake-up timer if entering LeaderPressed state
-                if let ShortcutState::LeaderPressed { .. } = &manager.state {
-                    event_loop
-                        .set_control_flow(ControlFlow::WaitUntil(Instant::now() + manager.timeout));
+                // Set the appropriate control flow based on new state
+                match &manager.state {
+                    ShortcutState::LeaderKeyPressed { .. } => {
+                        debug!("Waiting until timeout");
+                        event_loop.set_control_flow(ControlFlow::WaitUntil(
+                            Instant::now() + manager.timeout,
+                        ));
+                    }
+                    ShortcutState::Waiting => {
+                        debug!("Setting back to Wait");
+                        event_loop.set_control_flow(ControlFlow::Wait);
+                    }
+                }
+            }
+
+            // Check for timeout if in LeaderPressed state
+            if let ShortcutState::LeaderKeyPressed { time, .. } = &manager.state {
+                if time.elapsed() > manager.timeout {
+                    debug!("Leader key timeout. Resetting state");
+                    manager.reset_state();
+                    event_loop.set_control_flow(ControlFlow::Wait);
                 }
             }
         }

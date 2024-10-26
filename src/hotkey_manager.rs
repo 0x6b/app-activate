@@ -42,9 +42,15 @@ impl HotKeyManager {
                 .applications
                 .iter()
                 .map(|(key, path)| {
-                    // add `Key` prefix if the specified key is in 'A' to 'Z'
-                    let key = if key.len() == 1 && key.is_ascii() {
-                        format!("Key{}", key.to_ascii_uppercase())
+                    let key = if key.len() == 1 {
+                        let c = key.chars().next().unwrap();
+                        if c.is_ascii_alphabetic() {
+                            format!("Key{}", c.to_ascii_uppercase())
+                        } else if c.is_ascii_digit() {
+                            format!("Digit{}", c)
+                        } else {
+                            key.clone()
+                        }
                     } else {
                         key.clone()
                     };

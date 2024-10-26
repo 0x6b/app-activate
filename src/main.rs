@@ -5,7 +5,7 @@ use std::{fs::read_to_string, time::Instant};
 
 use anyhow::Result;
 use env_logger::Env;
-use global_hotkey::GlobalHotKeyEvent;
+use global_hotkey::{GlobalHotKeyEvent, HotKeyState};
 use log::debug;
 use winit::{
     event::Event,
@@ -24,24 +24,26 @@ fn main() -> Result<()> {
     let mut manager = HotKeyManager::from_config(config)?;
 
     EventLoopBuilder::new().build()?.run(move |event, event_loop| {
-        if event == Event::AboutToWait {
-            // Check for hotkey events
+        if let Event::NewEvents(_) = event {
             if let Ok(event) = GlobalHotKeyEvent::receiver().try_recv() {
                 debug!("Received hotkey event: {event:?}");
-                manager.handle(event);
 
-                // Set the appropriate control flow based on new state
-                match &manager.state {
-                    State::AwaitingSecondKey { .. } => {
-                        debug!("Waiting until timeout");
-                        event_loop.set_control_flow(ControlFlow::WaitUntil(
-                            Instant::now() + manager.timeout,
-                        ));
-                    }
-                    State::Waiting => {
-                        debug!("Setting back to Wait");
-                        event_loop.set_control_flow(ControlFlow::Wait);
-                    }
+                // Only process Pressed events
+                if event.state == HotKeyState::Pressed {
+                    manager.handle(event);
+
+                    // Update control flow based on new state
+                    let control_flow = match &manager.state {
+                        State::AwaitingSecondKey { .. } => {
+                            debug!("Waiting until timeout");
+                            ControlFlow::WaitUntil(Instant::now() + manager.timeout)
+                        }
+                        State::Waiting => {
+                            debug!("Setting back to Wait");
+                            ControlFlow::Wait
+                        }
+                    };
+                    event_loop.set_control_flow(control_flow);
                 }
             }
 

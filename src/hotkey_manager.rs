@@ -90,7 +90,7 @@ impl HotKeyManager {
                     self.applications.iter().find(|(hotkey, _)| hotkey.id() == event.id)
                 {
                     debug!("found hotkey for {:?}", path);
-                    match open::that(path) {
+                    match open::that_detached(path) {
                         Ok(()) => debug!("Successfully launched {path:?}"),
                         Err(err) => error!("Failed to launch {path:?}: {err}"),
                     }

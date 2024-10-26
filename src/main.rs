@@ -14,7 +14,10 @@ use global_hotkey::{
 };
 use log::{debug, error, trace};
 use serde::{Deserialize, Serialize};
-use winit::event_loop::{ControlFlow, EventLoopBuilder};
+use winit::{
+    event::Event,
+    event_loop::{ControlFlow, EventLoopBuilder},
+};
 
 #[derive(Debug)]
 enum ShortcutState {
@@ -32,6 +35,7 @@ struct ShortcutManager {
 
 impl ShortcutManager {
     fn handle(&mut self, event: GlobalHotKeyEvent) {
+        debug!("Handling GlobalHotKeyEvent: {event:?}");
         match &mut self.state {
             ShortcutState::Waiting => {
                 if event.id == self.leader_key.id() {
@@ -109,10 +113,19 @@ fn main() -> Result<()> {
     let config: Config = toml::from_str(&read_to_string("config.toml")?)?;
     let mut manager = ShortcutManager::from_config(config)?;
 
-    EventLoopBuilder::new().build()?.run(move |_event, event_loop| {
-        event_loop.set_control_flow(ControlFlow::Poll);
-        if let Ok(event) = GlobalHotKeyEvent::receiver().try_recv() {
-            manager.handle(event);
+    EventLoopBuilder::new().build()?.run(move |event, event_loop| {
+        event_loop.set_control_flow(ControlFlow::Wait);
+        if let Event::AboutToWait { .. } = event {
+            trace!("Woke up");
+            if let Ok(event) = GlobalHotKeyEvent::receiver().try_recv() {
+                manager.handle(event);
+
+                // Set wake-up timer if entering LeaderPressed state
+                if let ShortcutState::LeaderPressed { .. } = &manager.state {
+                    event_loop
+                        .set_control_flow(ControlFlow::WaitUntil(Instant::now() + manager.timeout));
+                }
+            }
         }
     })?;
 

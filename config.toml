@@ -1,6 +1,15 @@
-leader_key = "F9"
+leader_key = "F10"
 timeout_ms = 500
 
 [applications]
+1 = "/Applications/1Password.app"
+c = "/System/Applications/Calendar.app"
 f = "/Applications/Firefox.app"
+g = "/Applications/Google Chrome.app"
+h = "/System/Applications/Home.app"
+i = "/System/Library/CoreServices/Finder.app"
+m = "/Users/kaoru/bin/Wezlix.app"
+n = "/Applications/Notion.app"
+s = "/Applications/Slack.app"
 t = "/Applications/Ghostty.app"
+v = "/Applications/Visual Studio Code.app"

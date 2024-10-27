@@ -2,7 +2,14 @@ mod args;
 mod config;
 mod hotkey_manager;
 
-use std::{fs::read_to_string, path::PathBuf, process::exit, time::Instant};
+use std::{
+    fmt::Debug,
+    fs::read_to_string,
+    path::{Path, PathBuf},
+    process::exit,
+    thread::spawn,
+    time::Instant,
+};
 
 use anyhow::Result;
 use clap::Parser;
@@ -18,7 +25,7 @@ use xdg::BaseDirectories;
 
 use crate::{
     args::{Args, Command},
-    config::Config,
+    config::{Config, CustomEvent},
     hotkey_manager::{HotKeyManager, State},
 };
 
@@ -29,24 +36,9 @@ fn main() -> Result<()> {
     debug!("{args:?}");
     let config_path = get_config_path(args.config)?;
     debug!("Reading config file at {config_path:?}");
+    let config = load_config(&config_path)?;
 
-    let config = match read_to_string(&config_path) {
-        Ok(config) => config,
-        Err(why) => {
-            eprintln!("Failed to read config file at {config_path:?}: {why}");
-            exit(1);
-        }
-    };
-
-    let config = match from_str(&config) {
-        Ok(config) => config,
-        Err(why) => {
-            eprintln!("Failed to parse config file: {why}");
-            exit(1);
-        }
-    };
-
-    let event_loop = EventLoopBuilder::new().build()?;
+    let event_loop: EventLoop<CustomEvent> = EventLoopBuilder::with_user_event().build()?;
 
     match args.command {
         None | Some(Command::Start) => start(event_loop, config, config_path)?,
@@ -61,64 +53,88 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn start(event_loop: EventLoop<()>, initial_config: Config, config_path: PathBuf) -> Result<()> {
+fn start(
+    event_loop: EventLoop<CustomEvent>,
+    initial_config: Config,
+    config_path: PathBuf,
+) -> Result<()> {
     let mut manager = HotKeyManager::from_config(initial_config)?;
     let (config_tx, config_rx) = std::sync::mpsc::channel();
     let _watcher = config::watch_config(&config_path, config_tx)?;
 
-    event_loop.run(move |event, event_loop| {
-        if let Ok(()) = config_rx.try_recv() {
-            debug!("Config file changed. Reloading from {config_path:?}");
-            let config = match read_to_string(&config_path) {
-                Ok(config) => config,
-                Err(why) => {
-                    error!("Failed to read config file at {config_path:?}: {why}");
-                    return;
-                }
-            };
-            let config = match from_str(&config) {
-                Ok(config) => config,
-                Err(why) => {
-                    error!("Failed to parse config file: {why}");
-                    return;
-                }
-            };
-            manager.update_config(config).unwrap();
+    let event_loop_proxy = event_loop.create_proxy();
+    spawn(move || {
+        while let Ok(()) = config_rx.recv() {
+            let _ = event_loop_proxy.send_event(CustomEvent::ConfigChanged);
         }
+    });
 
-        if let Event::NewEvents(_) = event {
-            if let Ok(event) = GlobalHotKeyEvent::receiver().try_recv() {
-                debug!("Received hotkey event: {event:?}");
-
-                // Only process Pressed events
-                if event.state == HotKeyState::Pressed {
-                    manager.handle(event);
-
-                    // Update control flow based on new state
-                    let control_flow = match &manager.state {
-                        State::AwaitingSecondKey { .. } => {
-                            debug!("Waiting until timeout");
-                            ControlFlow::WaitUntil(Instant::now() + manager.timeout)
-                        }
-                        State::Waiting => {
-                            debug!("Setting back to Wait");
-                            ControlFlow::Wait
-                        }
-                    };
-                    event_loop.set_control_flow(control_flow);
+    event_loop.run(move |event, event_loop| {
+        match event {
+            Event::UserEvent(CustomEvent::ConfigChanged) => {
+                debug!("Config file changed. Reloading from {config_path:?}");
+                let config = load_config(&config_path).unwrap();
+                if let Err(why) = manager.update_config(config) {
+                    error!("Failed to update config: {why}");
                 }
             }
+            Event::NewEvents(_) => {
+                if let Ok(event) = GlobalHotKeyEvent::receiver().try_recv() {
+                    debug!("Received hotkey event: {event:?}");
 
-            // Check for timeout if in LeaderPressed state
-            if manager.is_timed_out() {
-                debug!("Leader key timeout. Resetting state");
-                manager.reset_state();
-                event_loop.set_control_flow(ControlFlow::Wait);
+                    // Only process Pressed events
+                    if event.state == HotKeyState::Pressed {
+                        manager.handle(event);
+
+                        // Update control flow based on new state
+                        let control_flow = match &manager.state {
+                            State::AwaitingSecondKey { .. } => {
+                                debug!("Waiting until timeout");
+                                ControlFlow::WaitUntil(Instant::now() + manager.timeout)
+                            }
+                            State::Waiting => {
+                                debug!("Setting back to Wait");
+                                ControlFlow::Wait
+                            }
+                        };
+                        event_loop.set_control_flow(control_flow);
+                    }
+                }
+
+                // Check for timeout if in LeaderPressed state
+                if manager.is_timed_out() {
+                    debug!("Leader key timeout. Resetting state");
+                    manager.reset_state();
+                    event_loop.set_control_flow(ControlFlow::Wait);
+                }
             }
+            _ => {}
         }
     })?;
 
     Ok(())
+}
+
+fn load_config<P>(path: P) -> Result<Config>
+where
+    P: AsRef<Path> + Debug,
+{
+    let config = match read_to_string(&path) {
+        Ok(config) => config,
+        Err(why) => {
+            eprintln!("Failed to read config file at {path:?}: {why}");
+            exit(1);
+        }
+    };
+
+    let config = match from_str(&config) {
+        Ok(config) => config,
+        Err(why) => {
+            eprintln!("Failed to parse config file: {why}");
+            exit(1);
+        }
+    };
+    Ok(config)
 }
 
 fn get_config_path(config: Option<PathBuf>) -> Result<PathBuf> {

@@ -14,6 +14,10 @@ pub struct Config {
     pub timeout_ms: u64,
 }
 
+pub enum CustomEvent {
+    ConfigChanged,
+}
+
 pub fn watch_config<P>(path: P, tx: Sender<()>) -> notify::Result<notify::RecommendedWatcher>
 where
     P: AsRef<Path>,

@@ -60,9 +60,13 @@ encoding="UTF-8"?> <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://
             Ok(_) => info!("Registered app-activate"),
             Err(why) => warn!("Failed to load {name}: {why}"),
         }
+        match run_cmd!(launchctl enable gui/$id/$name) {
+            Ok(_) => info!("Enabled gui/{id}/{name}"),
+            Err(why) => warn!("Failed to enable gui/{id}/{name}: {why}"),
+        };
         match run_cmd!(launchctl start $name) {
             Ok(_) => info!("Started {name}"),
-            Err(why) => warn!("Failed to start {name}: {why}"),
+            Err(why) => warn!("Failed to start gui/{id}/{name}: {why}"),
         };
         Ok(())
     }

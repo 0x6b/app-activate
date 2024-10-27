@@ -60,6 +60,37 @@ impl HotKeyManager {
         })
     }
 
+    pub fn update_config(&mut self, config: Config) -> anyhow::Result<()> {
+        self.manager.unregister_all(&[self.leader_key])?;
+        let leader_key = HotKey::new(None, Code::from_str(&config.leader_key)?);
+        self.manager.register(leader_key)?;
+        self.leader_key = leader_key;
+        self.state = State::Waiting;
+        self.timeout = Duration::from_millis(config.timeout_ms);
+        self.applications.clear();
+        self.applications = config
+            .applications
+            .iter()
+            .map(|(key, path)| {
+                let key = if key.len() == 1 {
+                    let c = key.chars().next().unwrap();
+                    if c.is_ascii_alphabetic() {
+                        format!("Key{}", c.to_ascii_uppercase())
+                    } else if c.is_ascii_digit() {
+                        format!("Digit{}", c)
+                    } else {
+                        key.clone()
+                    }
+                } else {
+                    key.clone()
+                };
+                (HotKey::new(None, Code::from_str(&key).unwrap()), path.to_path_buf())
+            })
+            .collect::<Vec<(_, _)>>();
+
+        Ok(())
+    }
+
     pub fn is_timed_out(&self) -> bool {
         match self.state {
             State::AwaitingSecondKey { pressed_at, .. } => pressed_at.elapsed() > self.timeout,

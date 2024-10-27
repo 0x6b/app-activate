@@ -12,7 +12,7 @@ use log::{debug, error};
 use toml::from_str;
 use winit::{
     event::Event,
-    event_loop::{ControlFlow, EventLoopBuilder},
+    event_loop::{ControlFlow, EventLoop, EventLoopBuilder},
 };
 use xdg::BaseDirectories;
 
@@ -27,10 +27,29 @@ fn main() -> Result<()> {
 
     let args = Args::parse();
     debug!("{args:?}");
-    let config = get_config(args.config)?;
+    let config_path = get_config_path(args.config)?;
+    debug!("Reading config file at {config_path:?}");
+
+    let config = match read_to_string(&config_path) {
+        Ok(config) => config,
+        Err(why) => {
+            eprintln!("Failed to read config file at {config_path:?}: {why}");
+            exit(1);
+        }
+    };
+
+    let config = match from_str(&config) {
+        Ok(config) => config,
+        Err(why) => {
+            eprintln!("Failed to parse config file: {why}");
+            exit(1);
+        }
+    };
+
+    let event_loop = EventLoopBuilder::new().build()?;
 
     match args.command {
-        None | Some(Command::Start) => start(config)?,
+        None | Some(Command::Start) => start(event_loop, config, config_path)?,
         Some(Command::Register) => {
             unimplemented!("Registering app to the launch service is not yet implemented")
         }
@@ -42,10 +61,31 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn start(config: Config) -> Result<()> {
-    let mut manager = HotKeyManager::from_config(config)?;
+fn start(event_loop: EventLoop<()>, initial_config: Config, config_path: PathBuf) -> Result<()> {
+    let mut manager = HotKeyManager::from_config(initial_config)?;
+    let (config_tx, config_rx) = std::sync::mpsc::channel();
+    let _watcher = config::watch_config(&config_path, config_tx)?;
 
-    EventLoopBuilder::new().build()?.run(move |event, event_loop| {
+    event_loop.run(move |event, event_loop| {
+        if let Ok(()) = config_rx.try_recv() {
+            debug!("Config file changed. Reloading from {config_path:?}");
+            let config = match read_to_string(&config_path) {
+                Ok(config) => config,
+                Err(why) => {
+                    error!("Failed to read config file at {config_path:?}: {why}");
+                    return;
+                }
+            };
+            let config = match from_str(&config) {
+                Ok(config) => config,
+                Err(why) => {
+                    error!("Failed to parse config file: {why}");
+                    return;
+                }
+            };
+            manager.update_config(config).unwrap();
+        }
+
         if let Event::NewEvents(_) = event {
             if let Ok(event) = GlobalHotKeyEvent::receiver().try_recv() {
                 debug!("Received hotkey event: {event:?}");
@@ -81,7 +121,7 @@ fn start(config: Config) -> Result<()> {
     Ok(())
 }
 
-fn get_config(config: Option<PathBuf>) -> Result<Config> {
+fn get_config_path(config: Option<PathBuf>) -> Result<PathBuf> {
     let path = config.unwrap_or_else(|| {
         let path = BaseDirectories::with_prefix("app-activate")
             .unwrap()
@@ -98,14 +138,5 @@ fn get_config(config: Option<PathBuf>) -> Result<Config> {
         exit(1);
     };
 
-    debug!("Reading config file at {path:?}");
-    let config = match read_to_string(&path) {
-        Ok(config) => config,
-        Err(why) => {
-            eprintln!("Failed to read config file at {path:?}: {why}");
-            exit(1);
-        }
-    };
-
-    Ok(from_str::<Config>(&config)?)
+    Ok(path)
 }

@@ -1,15 +1,11 @@
-leader_key = "F10"
-timeout_ms = 600
+leader_key = "F10" # A hotkey to trigger the launcher
+timeout_ms = 600 # The time in milliseconds to wait for the next key press
 
+# A pair of second hotkey and absolute path to the application
 [applications]
-1 = "/Applications/1Password.app"
-c = "/System/Applications/Calendar.app"
+c = "/System/Applications/Calendar.app" # means that pressing the `leader_key`, (releasing it), and then pressing `c` within the `timeout_ms` will open the Calendar app
 f = "/Applications/Firefox.app"
 g = "/Applications/Google Chrome.app"
-h = "/System/Applications/Home.app"
 i = "/System/Library/CoreServices/Finder.app"
-m = "/Users/kaoru/bin/Wezlix.app"
-n = "/Applications/Notion.app"
 s = "/Applications/Slack.app"
 t = "/Applications/Ghostty.app"
-v = "/Applications/Visual Studio Code.app"

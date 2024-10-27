@@ -6,6 +6,8 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.91"
 clap = { version = "4.5.20", features = ["derive", "env", "wrap_help"] }
+cmd_lib = "1.9.5"
+dirs = "5.0.1"
 env_logger = "0.11.5"
 global-hotkey = "0.6.2"
 log = "0.4.22"

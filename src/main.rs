@@ -1,6 +1,8 @@
 mod args;
 mod config;
 mod hotkey_manager;
+#[cfg(target_os = "macos")]
+mod launchd_manager;
 
 use std::{
     fmt::Debug,
@@ -27,6 +29,7 @@ use crate::{
     args::{Args, Command},
     config::{Config, CustomEvent},
     hotkey_manager::{HotKeyManager, State},
+    launchd_manager::LaunchdManager,
 };
 
 fn main() -> Result<()> {
@@ -40,13 +43,22 @@ fn main() -> Result<()> {
 
     let event_loop: EventLoop<CustomEvent> = EventLoopBuilder::with_user_event().build()?;
 
+    use Command::*;
     match args.command {
-        None | Some(Command::Start) => start(event_loop, config, config_path)?,
-        Some(Command::Register) => {
-            unimplemented!("Registering app to the launch service is not yet implemented")
+        None | Some(Start) => start(event_loop, config, config_path)?,
+        Some(Register) => {
+            if cfg!(target_os = "macos") {
+                LaunchdManager::new("app-activate").register()?
+            } else {
+                error!("Service registration not supported on this platform");
+            }
         }
-        Some(Command::Unregister) => {
-            unimplemented!("Unregistering app from the launch service is not yet implemented")
+        Some(Unregister) => {
+            if cfg!(target_os = "macos") {
+                LaunchdManager::new("app-activate").unregister()?
+            } else {
+                error!("Service registration not supported on this platform");
+            }
         }
     }
 

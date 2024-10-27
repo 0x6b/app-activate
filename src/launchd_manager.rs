@@ -45,6 +45,10 @@ encoding="UTF-8"?> <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://
     <array>
         <string>{}</string>
     </array>
+    <key>KeepAlive</key>
+    <true/>
+    <key>RunAtLoad</key>
+    <true/>
     <key>StandardOutPath</key>
     <string>/tmp/app-activate.out.log</string>
     <key>StandardErrorPath</key>

@@ -19,9 +19,12 @@ use env_logger::Env;
 use global_hotkey::{GlobalHotKeyEvent, HotKeyState};
 use log::{debug, error};
 use toml::from_str;
+#[cfg(target_os = "macos")]
+use winit::platform::macos::EventLoopBuilderExtMacOS;
 use winit::{
     event::Event,
     event_loop::{ControlFlow, EventLoop, EventLoopBuilder},
+    platform::macos::ActivationPolicy,
 };
 use xdg::BaseDirectories;
 
@@ -41,7 +44,12 @@ fn main() -> Result<()> {
     debug!("Reading config file at {config_path:?}");
     let config = load_config(&config_path)?;
 
-    let event_loop: EventLoop<CustomEvent> = EventLoopBuilder::with_user_event().build()?;
+    let mut event_loop = EventLoopBuilder::with_user_event();
+    #[cfg(target_os = "macos")]
+    event_loop.with_activation_policy(ActivationPolicy::Accessory);
+    #[cfg(target_os = "macos")]
+    event_loop.with_default_menu(false);
+    let event_loop: EventLoop<CustomEvent> = event_loop.build()?;
 
     use Command::*;
     match args.command {

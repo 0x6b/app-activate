@@ -17,3 +17,9 @@ serde = "1.0.213"
 toml = "0.8.19"
 winit = "0.29.15"
 xdg = "2.5.2"
+
+[profile.release]
+# For speed. See also .cargo/config.toml
+lto = true
+codegen-units = 1
+panic = "abort"

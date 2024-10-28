@@ -46,9 +46,10 @@ fn main() -> Result<()> {
 
     let mut event_loop = EventLoopBuilder::with_user_event();
     #[cfg(target_os = "macos")]
-    event_loop.with_activation_policy(ActivationPolicy::Accessory);
-    #[cfg(target_os = "macos")]
-    event_loop.with_default_menu(false);
+    {
+        event_loop.with_activation_policy(ActivationPolicy::Accessory);
+        event_loop.with_default_menu(false);
+    }
     let event_loop: EventLoop<CustomEvent> = event_loop.build()?;
 
     use Command::*;

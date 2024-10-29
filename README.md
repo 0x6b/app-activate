@@ -57,9 +57,9 @@ $ app-activate register
 $ ps -ef | grep app-activate # ~/.cargo/bin/app-activate should be running
 ```
 
-The register command expects that:
+The `register` subcommand expects that:
 
-- the app-activate binary to be in the `~/.cargo/bin/app-activate`.
+- the binary to be in the `~/.cargo/bin/app-activate`.
 - the configuration file to be in the `$XDG_CONFIG_HOME/app-activate/config.toml`.
 
 Yes, these are hardcoded.

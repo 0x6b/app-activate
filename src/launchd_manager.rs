@@ -35,25 +35,25 @@ impl LaunchdManager {
         let plist = self.plist.clone();
         let mut file = File::options().write(true).create(true).truncate(true).open(&plist)?;
 
-        let _= file.write(format!(r#"<?xml version="1.0"
-encoding="UTF-8"?> <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        let _= file.write(format!(r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>{}</string>
-    <key>ProgramArguments</key>
-    <array>
+    <dict>
+        <key>Label</key>
         <string>{}</string>
-    </array>
-    <key>KeepAlive</key>
-    <true/>
-    <key>RunAtLoad</key>
-    <true/>
-    <key>StandardOutPath</key>
-    <string>/tmp/app-activate.out.log</string>
-    <key>StandardErrorPath</key>
-    <string>/tmp/app-activate.err.log</string>
-</dict>
+        <key>ProgramArguments</key>
+        <array>
+            <string>{}</string>
+        </array>
+        <key>KeepAlive</key>
+        <true/>
+        <key>RunAtLoad</key>
+        <true/>
+        <key>StandardOutPath</key>
+        <string>/tmp/app-activate.out.log</string>
+        <key>StandardErrorPath</key>
+        <string>/tmp/app-activate.err.log</string>
+    </dict>
 </plist>
 "#,
                                   self.name, self.bin.to_string_lossy()).as_bytes());

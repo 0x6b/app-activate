@@ -1,8 +1,8 @@
 [package]
 name = "app-activate"
-version = "0.3.1"
+version = "0.3.2"
 edition = "2021"
-description = "Application launcher"
+description = "A minimal application launcher, just for my needs."
 
 [dependencies]
 # Error handling

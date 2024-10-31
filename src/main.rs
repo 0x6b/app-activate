@@ -4,21 +4,13 @@ mod hotkey_manager;
 #[cfg(target_os = "macos")]
 mod launchd_manager;
 
-use std::{
-    fmt::Debug,
-    fs::read_to_string,
-    path::{Path, PathBuf},
-    process::exit,
-    thread::spawn,
-    time::Instant,
-};
+use std::{path::PathBuf, process::exit, thread::spawn, time::Instant};
 
 use anyhow::Result;
 use clap::Parser;
 use env_logger::Env;
 use global_hotkey::{GlobalHotKeyEvent, HotKeyState};
 use log::{debug, error};
-use toml::from_str;
 #[cfg(target_os = "macos")]
 use winit::platform::macos::EventLoopBuilderExtMacOS;
 use winit::{
@@ -42,7 +34,7 @@ fn main() -> Result<()> {
     debug!("{args:?}");
     let config_path = get_config_path(args.config)?;
     debug!("Reading config file at {config_path:?}");
-    let config = load_config(&config_path)?;
+    let config = Config::from(&config_path)?;
 
     let mut event_loop = EventLoopBuilder::with_user_event();
     #[cfg(target_os = "macos")]
@@ -54,7 +46,7 @@ fn main() -> Result<()> {
 
     use Command::*;
     match args.command {
-        None | Some(Start) => start(event_loop, config, config_path)?,
+        None | Some(Start) => start(event_loop, config)?,
         Some(Register) => {
             if cfg!(target_os = "macos") {
                 LaunchdManager::new("app-activate").register()?
@@ -74,14 +66,10 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn start(
-    event_loop: EventLoop<CustomEvent>,
-    initial_config: Config,
-    config_path: PathBuf,
-) -> Result<()> {
-    let mut manager = HotKeyManager::from_config(initial_config)?;
+fn start(event_loop: EventLoop<CustomEvent>, config: Config) -> Result<()> {
+    let mut manager = HotKeyManager::from_config(&config)?;
     let (config_tx, config_rx) = std::sync::mpsc::channel();
-    let _watcher = config::watch_config(&config_path, config_tx)?;
+    let _watcher = config.watch(config_tx)?;
 
     let event_loop_proxy = event_loop.create_proxy();
     spawn(move || {
@@ -93,10 +81,11 @@ fn start(
     event_loop.run(move |event, event_loop| {
         match event {
             Event::UserEvent(CustomEvent::ConfigChanged) => {
-                debug!("Config file changed. Reloading from {config_path:?}");
-                let config = load_config(&config_path).unwrap();
-                if let Err(why) = manager.update_config(config) {
-                    error!("Failed to update config: {why}");
+                debug!("Config file changed. Reloading from {}", config.path.display());
+                let config = Config::from(&config.path).unwrap();
+                match manager.update_config(&config) {
+                    Ok(..) => debug!("Config updated successfully: {config:?}"),
+                    Err(why) => error!("Failed to update config: {why}"),
                 }
             }
             Event::NewEvents(_) => {
@@ -134,28 +123,6 @@ fn start(
     })?;
 
     Ok(())
-}
-
-fn load_config<P>(path: P) -> Result<Config>
-where
-    P: AsRef<Path> + Debug,
-{
-    let config = match read_to_string(&path) {
-        Ok(config) => config,
-        Err(why) => {
-            eprintln!("Failed to read config file at {path:?}: {why}");
-            exit(1);
-        }
-    };
-
-    let config = match from_str(&config) {
-        Ok(config) => config,
-        Err(why) => {
-            eprintln!("Failed to parse config file: {why}");
-            exit(1);
-        }
-    };
-    Ok(config)
 }
 
 fn get_config_path(config: Option<PathBuf>) -> Result<PathBuf> {

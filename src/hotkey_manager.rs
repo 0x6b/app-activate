@@ -4,6 +4,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use anyhow::Result;
 use global_hotkey::{
     hotkey::{Code, HotKey},
     GlobalHotKeyEvent, GlobalHotKeyManager,
@@ -27,7 +28,7 @@ pub struct HotKeyManager {
 }
 
 impl HotKeyManager {
-    pub fn from_config(config: Config) -> anyhow::Result<Self> {
+    pub fn from_config(config: &Config) -> Result<Self> {
         debug!("{config:?}");
         let manager = GlobalHotKeyManager::new()?;
         let leader_key = HotKey::new(None, Code::from_str(&config.leader_key)?);
@@ -60,7 +61,7 @@ impl HotKeyManager {
         })
     }
 
-    pub fn update_config(&mut self, config: Config) -> anyhow::Result<()> {
+    pub fn update_config(&mut self, config: &Config) -> Result<()> {
         self.manager.unregister_all(&[self.leader_key])?;
         let leader_key = HotKey::new(None, Code::from_str(&config.leader_key)?);
         self.manager.register(leader_key)?;

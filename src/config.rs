@@ -24,10 +24,6 @@ pub struct Config {
     pub(crate) path: PathBuf, // For internal use. Not deserialized from config file
 }
 
-pub enum CustomEvent {
-    ConfigChanged,
-}
-
 impl Config {
     pub fn from<P>(path: P) -> Result<Self>
     where

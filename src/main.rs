@@ -22,7 +22,7 @@ fn main() -> Result<()> {
 
     use Command::*;
     match args.command {
-        None | Some(Start) => AppActivator::from_config(config)?.start()?,
+        None | Some(Start) => AppActivator::start(config)?,
         Some(Register) => {
             if cfg!(target_os = "macos") {
                 LaunchdManager::new("app-activate").register()?

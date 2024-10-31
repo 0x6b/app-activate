@@ -5,7 +5,7 @@ mod hotkey_manager;
 mod launchd_manager;
 
 pub use app_activator::AppActivator;
-pub use config::{Config, CustomEvent};
+pub use config::Config;
 pub use hotkey_manager::HotKeyManager;
 #[cfg(target_os = "macos")]
 pub use launchd_manager::LaunchdManager;

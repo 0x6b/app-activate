@@ -39,25 +39,7 @@ impl HotKeyManager {
             leader_key,
             state: State::Waiting,
             timeout: Duration::from_millis(config.timeout_ms),
-            applications: config
-                .applications
-                .iter()
-                .map(|(key, path)| {
-                    let key = if key.len() == 1 {
-                        let c = key.chars().next().unwrap();
-                        if c.is_ascii_alphabetic() {
-                            format!("Key{}", c.to_ascii_uppercase())
-                        } else if c.is_ascii_digit() {
-                            format!("Digit{}", c)
-                        } else {
-                            key.clone()
-                        }
-                    } else {
-                        key.clone()
-                    };
-                    (HotKey::new(None, Code::from_str(&key).unwrap()), path.to_path_buf())
-                })
-                .collect::<Vec<(_, _)>>(),
+            applications: config.applications(),
         })
     }
 
@@ -69,25 +51,7 @@ impl HotKeyManager {
         self.state = State::Waiting;
         self.timeout = Duration::from_millis(config.timeout_ms);
         self.applications.clear();
-        self.applications = config
-            .applications
-            .iter()
-            .map(|(key, path)| {
-                let key = if key.len() == 1 {
-                    let c = key.chars().next().unwrap();
-                    if c.is_ascii_alphabetic() {
-                        format!("Key{}", c.to_ascii_uppercase())
-                    } else if c.is_ascii_digit() {
-                        format!("Digit{}", c)
-                    } else {
-                        key.clone()
-                    }
-                } else {
-                    key.clone()
-                };
-                (HotKey::new(None, Code::from_str(&key).unwrap()), path.to_path_buf())
-            })
-            .collect::<Vec<(_, _)>>();
+        self.applications = config.applications();
 
         Ok(())
     }
@@ -108,7 +72,7 @@ impl HotKeyManager {
                     .applications
                     .iter()
                     .map(|(hotkey, _)| {
-                        trace!("registering second shot hotkey: {hotkey:?}");
+                        trace!("Registering second shot hotkey: {hotkey:?}");
                         self.manager.register(*hotkey).unwrap();
                         *hotkey
                     })
@@ -121,7 +85,7 @@ impl HotKeyManager {
                 if let Some((_, path)) =
                     self.applications.iter().find(|(hotkey, _)| hotkey.id() == event.id)
                 {
-                    debug!("found hotkey for {:?}", path);
+                    debug!("Found hotkey for {:?}", path);
                     match open::that_detached(path) {
                         Ok(()) => debug!("Successfully launched {path:?}"),
                         Err(err) => error!("Failed to launch {path:?}: {err}"),
@@ -137,7 +101,7 @@ impl HotKeyManager {
     pub fn reset_state(&mut self) {
         if let State::AwaitingSecondKey { registered_keys, .. } = &self.state {
             for hotkey in registered_keys {
-                trace!("unregistering {hotkey:?}");
+                trace!("Unregistering {hotkey:?}");
                 self.manager.unregister(*hotkey).unwrap();
             }
         }

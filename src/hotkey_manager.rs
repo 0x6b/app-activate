@@ -1,7 +1,8 @@
 use std::{
     path::PathBuf,
+    rc::Rc,
     str::FromStr,
-    time::{Duration, Instant},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use anyhow::Result;
@@ -10,6 +11,7 @@ use global_hotkey::{
     GlobalHotKeyEvent, GlobalHotKeyManager,
 };
 use log::{debug, error, trace};
+use rusqlite::Connection;
 
 use crate::Config;
 
@@ -63,7 +65,7 @@ impl HotKeyManager {
         }
     }
 
-    pub fn handle(&mut self, event: GlobalHotKeyEvent) {
+    pub fn handle(&mut self, event: GlobalHotKeyEvent, conn: Rc<Option<Connection>>) {
         debug!("Handling GlobalHotKeyEvent: {event:?}");
         match &mut self.state {
             State::Waiting if event.id == self.leader_key.id() => {
@@ -85,9 +87,28 @@ impl HotKeyManager {
                 if let Some((_, path)) =
                     self.applications.iter().find(|(hotkey, _)| hotkey.id() == event.id)
                 {
-                    debug!("Found hotkey for {:?}", path);
+                    debug!("Found hotkey for {path:?}");
                     match open::that_detached(path) {
-                        Ok(()) => debug!("Successfully launched {path:?}"),
+                        Ok(()) => {
+                            debug!("Successfully launched {path:?}");
+                            if let Some(conn) = conn.as_ref() {
+                                if conn
+                                    .execute(
+                                        "INSERT INTO log (datetime, application) VALUES (?1, ?2)",
+                                        (
+                                            SystemTime::now()
+                                                .duration_since(UNIX_EPOCH)
+                                                .unwrap() // should always success
+                                                .as_secs(),
+                                            path.to_string_lossy(),
+                                        ),
+                                    )
+                                    .is_err()
+                                {
+                                    error!("Failed to insert a log to SQLite database")
+                                }
+                            }
+                        }
                         Err(err) => error!("Failed to launch {path:?}: {err}"),
                     }
                     self.reset_state();

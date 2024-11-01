@@ -1,6 +1,6 @@
 [package]
 name = "app-activate"
-version = "0.3.5"
+version = "0.4.0"
 edition = "2021"
 description = "A minimal application launcher, just for my needs."
 
@@ -33,6 +33,9 @@ notify = "7.0.0"
 # Ser/de
 serde = "1.0.214"
 toml = { version = "0.8.19", default-features = false, features = ["parse"] }
+
+# SQLite3 for logging
+rusqlite = { version = "0.32.1", features = ["bundled"] }
 
 [profile.release]
 # For speed. See also .cargo/config.toml

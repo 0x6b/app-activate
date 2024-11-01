@@ -4,7 +4,7 @@ A minimal application launcher, just for my needs.
 
 ## Features
 
-- Two-shot global hotkeys to launch or activate an app
+- Two-shot global hotkeys to launch or activate an app, with the option to log to an SQLite database
 - Text-based configuration
 - No GUI
 

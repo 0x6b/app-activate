@@ -1,8 +1,9 @@
-use std::{path::PathBuf, thread::spawn, time::Instant};
+use std::{path::PathBuf, rc::Rc, thread::spawn, time::Instant};
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, bail, Result};
 use global_hotkey::{GlobalHotKeyEvent, HotKeyState};
 use log::{debug, error};
+use rusqlite::Connection;
 #[cfg(target_os = "macos")]
 use winit::platform::macos::EventLoopBuilderExtMacOS;
 use winit::{
@@ -21,12 +22,35 @@ use crate::{
     },
 };
 
-pub struct AppActivator {}
+pub struct AppActivator {
+    config: Config,
+    conn: Rc<Option<Connection>>,
+}
 
 struct ConfigChangeEvent;
 
 impl AppActivator {
-    pub fn start(config: Config) -> Result<()> {
+    pub fn new(config: Config) -> Result<Self> {
+        let conn = if let Some(db) = config.db.clone() {
+            if !db.exists() {
+                bail!("Database path '{}' does not exists.", db.display())
+            }
+            let conn = Connection::open(&db)?;
+            conn.execute(
+                r#"CREATE TABLE IF NOT EXISTS log (
+                datetime INTEGER NOT NULL,
+                application TEXT NOT NULL
+            )"#,
+                (),
+            )?;
+            Some(conn)
+        } else {
+            None
+        };
+        Ok(Self { config, conn: Rc::new(conn) })
+    }
+
+    pub fn start(&self) -> Result<()> {
         let mut event_loop = EventLoop::with_user_event();
         #[cfg(target_os = "macos")]
         {
@@ -35,10 +59,11 @@ impl AppActivator {
         }
         let event_loop: EventLoop<ConfigChangeEvent> = event_loop.build()?;
 
-        let hot_key_manager = HotKeyManager::from_config(&config)?;
+        let config_path = self.config.path.clone();
+        let hot_key_manager = HotKeyManager::from_config(&self.config)?;
+
         let (config_tx, config_rx) = std::sync::mpsc::channel();
-        let _watcher = config.watch(config_tx)?;
-        let mut state = State { config_path: config.path, hot_key_manager };
+        let _watcher = self.config.watch(config_tx)?;
 
         let event_loop_proxy = event_loop.create_proxy();
         spawn(move || {
@@ -46,13 +71,20 @@ impl AppActivator {
                 let _ = event_loop_proxy.send_event(ConfigChangeEvent);
             }
         });
-        event_loop.run_app(&mut state).map_err(|e| anyhow!("{e}"))
+        event_loop
+            .run_app(&mut State {
+                config_path,
+                hot_key_manager,
+                conn: self.conn.clone(),
+            })
+            .map_err(|e| anyhow!("{e}"))
     }
 }
 
 struct State {
     config_path: PathBuf,
     hot_key_manager: HotKeyManager,
+    conn: Rc<Option<Connection>>,
 }
 
 impl ApplicationHandler<ConfigChangeEvent> for State {
@@ -62,7 +94,7 @@ impl ApplicationHandler<ConfigChangeEvent> for State {
 
             // Only process Pressed events
             if event.state == HotKeyState::Pressed {
-                self.hot_key_manager.handle(event);
+                self.hot_key_manager.handle(event, self.conn.clone());
 
                 // Update control flow based on new state
                 let control_flow = match &self.hot_key_manager.state {

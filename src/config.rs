@@ -20,6 +20,7 @@ pub struct Config {
     pub leader_key: String,
     pub applications: BTreeMap<String, PathBuf>,
     pub timeout_ms: u64,
+    pub db: Option<PathBuf>,
     #[serde(skip)]
     pub(crate) path: PathBuf, // For internal use. Not deserialized from config file
 }

@@ -1,5 +1,6 @@
 leader_key = "F10" # A hotkey to trigger the launcher
 timeout_ms = 600 # The time in milliseconds to wait for the next key press
+db = "/path/to/app-activate.sqlite" # Optional. If it exists, record launched date (as unix timestamp in sec) and path to the application will be logged to SQLite database
 
 # A pair of second hotkey and absolute path to the application
 [applications]

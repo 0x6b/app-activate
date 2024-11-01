@@ -32,9 +32,6 @@ struct ConfigChangeEvent;
 impl AppActivator {
     pub fn new(config: Config) -> Result<Self> {
         let conn = if let Some(db) = config.db.clone() {
-            if !db.exists() {
-                bail!("Database path '{}' does not exists.", db.display())
-            }
             let conn = Connection::open(&db)?;
             conn.execute(
                 r#"CREATE TABLE IF NOT EXISTS log (

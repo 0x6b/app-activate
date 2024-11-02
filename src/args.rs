@@ -24,4 +24,7 @@ pub enum Command {
 
     /// Unregister the application from starting on login.
     Unregister,
+
+    /// Report launch history if available.
+    Report,
 }

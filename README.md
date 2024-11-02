@@ -20,6 +20,7 @@ Commands:
   start       Start the application. Default if no subcommand is provided
   register    Register the application to start on login
   unregister  Unregister the application from starting on login
+  report      Report launch history if available
   help        Print this message or the help of the given subcommand(s)
 
 Options:

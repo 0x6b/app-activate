@@ -1,7 +1,7 @@
 use std::{path::PathBuf, process::exit};
 
 use anyhow::Result;
-use app_activate::{AppActivator, Config, LaunchdManager};
+use app_activate::{AppActivator, Config, LaunchdManager, UsageReporter};
 use clap::Parser;
 use env_logger::Env;
 use log::{debug, error};
@@ -37,6 +37,7 @@ fn main() -> Result<()> {
                 error!("Service registration not supported on this platform");
             }
         }
+        Some(Report) => UsageReporter::new(&config)?.report()?,
     }
 
     Ok(())

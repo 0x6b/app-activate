@@ -1,8 +1,17 @@
 [package]
 name = "app-activate"
-version = "0.5.0"
+version = "0.6.0"
 edition = "2021"
 description = "A minimal application launcher, just for my needs."
+default-run = "app-activate"
+
+[[bin]]
+name = "app-activate"
+path = "src/main.rs"
+
+[[bin]]
+name = "app-activate-reporter"
+path = "src/reporter.rs"
 
 [dependencies]
 # Error handling
@@ -36,9 +45,6 @@ toml = { version = "0.8.19", default-features = false, features = ["parse"] }
 
 # SQLite3 for logging and reporting
 rusqlite = { version = "0.32.1", features = ["bundled"] }
-
-# Reporting
-prettytable-rs = { version = "0.10.0", default-features = false }
 
 # Date and time
 jiff = "0.1.14"

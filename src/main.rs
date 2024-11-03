@@ -1,11 +1,8 @@
-use std::{path::PathBuf, process::exit};
-
 use anyhow::Result;
-use app_activate::{AppActivator, Config, LaunchdManager, UsageReporter};
+use app_activate::{get_config, AppActivator, LaunchdManager};
 use clap::Parser;
 use env_logger::Env;
 use log::{debug, error};
-use xdg::BaseDirectories;
 
 use crate::args::{Args, Command};
 
@@ -16,9 +13,8 @@ fn main() -> Result<()> {
 
     let args = Args::parse();
     debug!("{args:?}");
-    let config_path = get_config_path(args.config)?;
-    debug!("Reading config file at {config_path:?}");
-    let config = Config::from(&config_path)?;
+
+    let config = get_config(args.config)?;
 
     use Command::*;
     match args.command {
@@ -37,28 +33,7 @@ fn main() -> Result<()> {
                 error!("Service registration not supported on this platform");
             }
         }
-        Some(Report) => UsageReporter::new(&config)?.report()?,
     }
 
     Ok(())
-}
-
-fn get_config_path(config: Option<PathBuf>) -> Result<PathBuf> {
-    let path = config.unwrap_or_else(|| {
-        let path = BaseDirectories::with_prefix("app-activate")
-            .unwrap()
-            .place_config_file("config.toml")
-            .unwrap();
-        debug!("Config file not provided. Using default at {path:?}");
-        path
-    });
-
-    let path = if path.exists() {
-        path.canonicalize()?
-    } else {
-        error!("Config file not found at {path:?}");
-        exit(1);
-    };
-
-    Ok(path)
 }

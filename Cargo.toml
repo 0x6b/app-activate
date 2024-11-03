@@ -46,9 +46,6 @@ toml = { version = "0.8.19", default-features = false, features = ["parse"] }
 # SQLite3 for logging and reporting
 rusqlite = { version = "0.32.1", features = ["bundled"] }
 
-# Reporting
-prettytable-rs = { version = "0.10.0", default-features = false }
-
 # Date and time
 jiff = "0.1.14"
 

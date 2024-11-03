@@ -3,10 +3,6 @@ use std::{path::PathBuf, process::exit};
 use anyhow::Result;
 use jiff::{ToSpan, Zoned};
 use log::error;
-use prettytable::{
-    format::{consts::FORMAT_NO_BORDER_LINE_SEPARATOR, Alignment},
-    row, Cell, Table,
-};
 use rusqlite::Connection;
 
 use crate::Config;
@@ -45,36 +41,50 @@ impl UsageReporter {
     }
 
     fn display(&self, title: &str, since: &Zoned, until: &Zoned) -> Result<()> {
-        let mut table = Table::new();
-        table.set_format(*FORMAT_NO_BORDER_LINE_SEPARATOR);
-        table.set_titles(row!["Application", "Count"]);
+        struct Row {
+            col1: String,
+            col2: String,
+        }
 
-        self.conn
-            .prepare(REPORT_QUERY)?
-            .query_map(
-                [since.timestamp().as_second(), until.timestamp().as_second()],
-                &Self::create_table_raw,
-            )?
-            .filter_map(|row| row.ok())
-            .for_each(|row| {
-                table.add_row(row);
-            });
+        let mut table = vec![Row {
+            col1: "Application".to_string(),
+            col2: "Count".to_string(),
+        }];
+        table.extend(
+            self.conn
+                .prepare(REPORT_QUERY)?
+                .query_map(
+                    [since.timestamp().as_second(), until.timestamp().as_second()],
+                    |row| -> Result<Row, rusqlite::Error> {
+                        let path: String = row.get(0)?;
+                        let count: i64 = row.get(1)?;
+
+                        Ok(Row {
+                            col1: PathBuf::from(path)
+                                .file_stem()
+                                .unwrap()
+                                .to_string_lossy()
+                                .to_string(),
+                            col2: count.to_string(),
+                        })
+                    },
+                )?
+                .filter_map(|row| row.ok())
+                .collect::<Vec<_>>(),
+        );
+
+        let col1w = table.iter().max_by_key(|data| data.col1.len()).unwrap().col1.len();
+        let col2w = table.iter().max_by_key(|data| data.col2.len()).unwrap().col2.len() - 1;
+
+        let mut iter = table.into_iter();
+        let header = iter.next().unwrap();
 
         println!("# {title}\n");
-        table.printstd();
+        println!("| {:col1w$} | {:col2w$} |", header.col1, header.col2);
+        println!("| {s1:col1w$} | {s2:col2w$}: |", s1 = "-".repeat(col1w), s2 = "-".repeat(col2w),);
+        iter.for_each(|r| println!("| {:col1w$} | {:>5} |", r.col1, r.col2));
         println!();
 
         Ok(())
-    }
-
-    fn create_table_raw(row: &rusqlite::Row) -> Result<prettytable::Row, rusqlite::Error> {
-        let path: String = row.get(0)?;
-        let count: i64 = row.get(1)?;
-        let application = PathBuf::from(path).file_stem().unwrap().to_string_lossy().to_string();
-
-        Ok(prettytable::Row::new(vec![
-            Cell::new(&application),
-            Cell::new_align(&count.to_string(), Alignment::RIGHT),
-        ]))
     }
 }

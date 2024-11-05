@@ -1,18 +1,18 @@
-use anyhow::Result;
 use app_activate::{get_config, AppActivator, LaunchdManager};
 use log::error;
 
-use crate::args::{Args, Command};
+use crate::args::{
+    Args,
+    Command::{Register, Start, Unregister},
+};
 
 mod args;
 
-fn main() -> Result<()> {
-    let args = Args::new();
-    let config = get_config(args.config)?;
+fn main() -> anyhow::Result<()> {
+    let Args { config, command } = Args::new();
 
-    use Command::*;
-    match args.command {
-        None | Some(Start) => AppActivator::new(config)?.start()?,
+    match command {
+        None | Some(Start) => AppActivator::new(get_config(config)?)?.start()?,
         Some(Register) => {
             if cfg!(target_os = "macos") {
                 LaunchdManager::new("app-activate").register()?

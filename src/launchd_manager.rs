@@ -4,7 +4,7 @@ use std::{
     path::PathBuf,
 };
 
-use anyhow::Result;
+use anyhow::{bail, Result};
 use cmd_lib::{run_cmd, run_fun};
 use dirs::home_dir;
 use log::{info, warn};
@@ -18,15 +18,19 @@ pub struct LaunchdManager {
 }
 
 impl LaunchdManager {
-    pub fn new(name: &str) -> Self {
-        let id = run_fun!(/usr/bin/id -u).unwrap();
-        let home_dir = home_dir().unwrap();
-        let bin = home_dir.join(".cargo").join("bin").join(name);
-        let plist = home_dir
-            .join("Library")
-            .join("LaunchAgents")
-            .join(format!("{name}.plist"));
-        Self { name: name.to_string(), id, bin, plist }
+    pub fn new(name: &str) -> Result<Self> {
+        if cfg!(target_os = "macos") {
+            let id = run_fun!(/usr/bin/id -u)?;
+            let home_dir = home_dir().unwrap();
+            let bin = home_dir.join(".cargo").join("bin").join(name);
+            let plist = home_dir
+                .join("Library")
+                .join("LaunchAgents")
+                .join(format!("{name}.plist"));
+            Ok(Self { name: name.to_string(), id, bin, plist })
+        } else {
+            bail!("Service registration not supported on this platform");
+        }
     }
 
     pub fn register(&self) -> Result<()> {

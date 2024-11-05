@@ -1,6 +1,8 @@
 use std::path::PathBuf;
 
 use clap::Parser;
+use env_logger::Env;
+use log::debug;
 
 #[derive(Debug, Parser)]
 #[clap(version, about)]
@@ -12,6 +14,15 @@ pub struct Args {
     /// Subcommand to run.
     #[clap(subcommand)]
     pub command: Option<Command>,
+}
+
+impl Args {
+    pub fn new() -> Self {
+        env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+        let args = Self::parse();
+        debug!("{args:?}");
+        args
+    }
 }
 
 #[derive(Debug, Clone, Parser)]

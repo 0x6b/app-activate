@@ -80,6 +80,13 @@ impl UsageReporter {
         let header = iter.next().unwrap();
 
         println!("# {title}\n");
+
+        println!(
+            "Since {} until {}",
+            since.strftime("%Y-%m-%d %H:%M:%S%:z"),
+            until.strftime("%Y-%m-%d %H:%M:%S%:z")
+        );
+        println!();
         println!("| {:col1w$} | {:col2w$} |", header.col1, header.col2);
         println!("| {s1:col1w$} | {s2:col2w$}: |", s1 = "-".repeat(col1w), s2 = "-".repeat(col2w),);
         iter.for_each(|r| println!("| {:col1w$} | {:>5} |", r.col1, r.col2));

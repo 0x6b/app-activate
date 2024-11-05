@@ -15,7 +15,9 @@ const REPORT_QUERY: &str = r#"SELECT application, COUNT(application) AS count
 FROM log
 WHERE :since < datetime AND datetime < :until
 GROUP BY application
-ORDER BY count DESC"#;
+ORDER BY count DESC
+LIMIT 10
+"#;
 
 impl UsageReporter {
     pub fn new(config: &Config) -> Result<Self> {
@@ -32,15 +34,41 @@ impl UsageReporter {
 
     pub fn report(&self) -> Result<()> {
         let now = Zoned::now();
+        let start_of_day = now.start_of_day()?;
+        let start_of_7_days = start_of_day.saturating_sub(7.days());
+        let start_of_30_days = start_of_day.saturating_sub(30.days());
 
-        self.display("Today", &now.start_of_day()?, &now)?;
-        self.display("Last 7 days", &now.start_of_day()?.saturating_sub(7.days()), &now)?;
-        self.display("Last 30 days", &now.start_of_day()?.saturating_sub(30.days()), &now)?;
+        let list_for_day = self.select(&start_of_day, &now)?;
+        let list_for_7_days = self.select(&start_of_7_days, &now)?;
+        let list_for_30_days = self.select(&start_of_30_days, &now)?;
+
+        // zip the three reports together line by line, and side by side
+        let result = list_for_day
+            .iter()
+            .zip(list_for_7_days.iter())
+            .zip(list_for_30_days.iter())
+            .map(|((l, l7), l30)| format!("{l}    {l7}    {l30}"))
+            .collect::<Vec<_>>();
+
+        let format = "%Y-%m-%d";
+        let now = now.strftime(format);
+
+        println!("          Today                     Last 7 days                 Last 30 days");
+        println!(
+            " {} → {}      {} → {}      {} → {}",
+            &start_of_day.strftime(format),
+            &now,
+            &start_of_7_days.strftime(format),
+            &now,
+            &start_of_30_days.strftime(format),
+            &now,
+        );
+        println!("{}", result.join("\n"));
 
         Ok(())
     }
 
-    fn display(&self, title: &str, since: &Zoned, until: &Zoned) -> Result<()> {
+    fn select(&self, since: &Zoned, until: &Zoned) -> Result<Vec<String>> {
         struct Row {
             col1: String,
             col2: String,
@@ -50,6 +78,7 @@ impl UsageReporter {
             col1: "Application".to_string(),
             col2: "Count".to_string(),
         }];
+
         table.extend(
             self.conn
                 .prepare(REPORT_QUERY)?
@@ -79,19 +108,15 @@ impl UsageReporter {
         let mut iter = table.into_iter();
         let header = iter.next().unwrap();
 
-        println!("# {title}\n");
+        let mut result: Vec<String> = Vec::new();
+        result.push(format!("| {:col1w$} | {:col2w$} |", header.col1, header.col2));
+        result.push(format!(
+            "| {s1:col1w$} | {s2:col2w$}: |",
+            s1 = "-".repeat(col1w),
+            s2 = "-".repeat(col2w),
+        ));
+        iter.for_each(|r| result.push(format!("| {:col1w$} | {:>5} |", r.col1, r.col2)));
 
-        println!(
-            "Since {} until {}",
-            since.strftime("%Y-%m-%d %H:%M:%S%:z"),
-            until.strftime("%Y-%m-%d %H:%M:%S%:z")
-        );
-        println!();
-        println!("| {:col1w$} | {:col2w$} |", header.col1, header.col2);
-        println!("| {s1:col1w$} | {s2:col2w$}: |", s1 = "-".repeat(col1w), s2 = "-".repeat(col2w),);
-        iter.for_each(|r| println!("| {:col1w$} | {:>5} |", r.col1, r.col2));
-        println!();
-
-        Ok(())
+        Ok(result)
     }
 }

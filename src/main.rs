@@ -1,19 +1,13 @@
 use anyhow::Result;
 use app_activate::{get_config, AppActivator, LaunchdManager};
-use clap::Parser;
-use env_logger::Env;
-use log::{debug, error};
+use log::error;
 
 use crate::args::{Args, Command};
 
 mod args;
 
 fn main() -> Result<()> {
-    env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
-
-    let args = Args::parse();
-    debug!("{args:?}");
-
+    let args = Args::new();
     let config = get_config(args.config)?;
 
     use Command::*;

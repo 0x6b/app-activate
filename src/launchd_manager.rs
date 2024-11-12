@@ -45,6 +45,8 @@ impl LaunchdManager {
     <dict>
         <key>Label</key>
         <string>{}</string>
+        <key>ProcessType</key>
+        <string>Interactive</string>
         <key>ProgramArguments</key>
         <array>
             <string>{}</string>

@@ -42,27 +42,36 @@ impl UsageReporter {
         let list_for_7_days = self.select(&start_of_7_days, &now)?;
         let list_for_30_days = self.select(&start_of_30_days, &now)?;
 
-        // zip the three reports together line by line, and side by side
-        let result = list_for_day
+        // Calculate maximum width for each column
+        let width = list_for_day
             .iter()
-            .zip(list_for_7_days.iter())
-            .zip(list_for_30_days.iter())
-            .map(|((l, l7), l30)| format!("{l}    {l7}    {l30}"))
-            .collect::<Vec<_>>();
+            .chain(list_for_7_days.iter())
+            .chain(list_for_30_days.iter())
+            .map(|s| s.len())
+            .max()
+            .unwrap_or(0);
 
         let format = "%Y-%m-%d";
         let now = now.strftime(format);
 
-        println!("          Today                     Last 7 days                 Last 30 days");
+        // Create headers with dynamic spacing
+        println!(" {:width$}  {:width$}  {:width$}", "Today", "Last 7 days", "Last 30 days");
+
         println!(
-            " {} → {}      {} → {}      {} → {}",
-            &start_of_day.strftime(format),
-            &now,
-            &start_of_7_days.strftime(format),
-            &now,
-            &start_of_30_days.strftime(format),
-            &now,
+            " {:width$}  {:width$}  {:width$}",
+            format!("{} → {}", &start_of_day.strftime(format), &now),
+            format!("{} → {}", &start_of_7_days.strftime(format), &now),
+            format!("{} → {}", &start_of_30_days.strftime(format), &now)
         );
+
+        // Zip and format the columns with dynamic spacing
+        let result = list_for_day
+            .iter()
+            .zip(list_for_7_days.iter())
+            .zip(list_for_30_days.iter())
+            .map(|((l, l7), l30)| format!("{l:width$}  {l7:width$}  {l30:width$}"))
+            .collect::<Vec<_>>();
+
         println!("{}", result.join("\n"));
 
         Ok(())

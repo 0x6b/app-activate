@@ -126,6 +126,11 @@ impl UsageReporter {
         ));
         iter.for_each(|r| result.push(format!("| {:col1w$} | {:>5} |", r.col1, r.col2)));
 
+        // fill the vector until its length equals to 10
+        while result.len() < 12 {
+            result.push(format!("| {:col1w$} | {:>5} |", "-", "-",));
+        }
+
         Ok(result)
     }
 }

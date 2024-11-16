@@ -1,97 +1,66 @@
-# app-activate
+dprint 0.47.2
+Copyright 2020-2023 by David Sherret
 
-A minimal application launcher, just for my needs.
+Auto-formats source code based on the specified plugins.
 
-## Features
+USAGE:
+    dprint <SUBCOMMAND> [OPTIONS] [--] [file patterns]...
 
-- Two-shot global hotkeys to launch or activate an app, with the option to log to an SQLite database
-- Text-based configuration
-- No GUI
+SUBCOMMANDS:
+  init                    Initializes a configuration file in the current directory.
+  fmt                     Formats the source files and writes the result to the file system.
+  check                   Checks for any files that haven't been formatted.
+  config                  Functionality related to the configuration file.
+  output-file-paths       Prints the resolved file paths for the plugins based on the args and configuration.
+  output-resolved-config  Prints the resolved configuration for the plugins based on the args and configuration.
+  output-format-times     Prints the amount of time it takes to format each file. Use this for debugging.
+  clear-cache             Deletes the plugin cache directory.
+  upgrade                 Upgrades the dprint executable.
+  completions             Generate shell completions script for dprint
+  license                 Outputs the software license.
+  lsp                     Starts up a language server for formatting files.
 
-## Usage
+More details at `dprint help <SUBCOMMAND>`
 
-```console
-$ app-activate --help
-A minimal application launcher, just for my needs.
+OPTIONS:
+  -c, --config <config>          Path or url to JSON configuration file. Defaults to dprint.json(c) or .dprint.json(c) in current or ancestor directory when not provided.
+      --plugins <urls/files>...  List of urls or file paths of plugins to use. This overrides what is specified in the config file.
+  -L, --log-level <log-level>    Set log level [default: info] [possible values: debug, info, warn, error, silent]
 
-Usage: app-activate [OPTIONS] [COMMAND]
+ENVIRONMENT VARIABLES:
+  DPRINT_CACHE_DIR     Directory to store the dprint cache. Note that this
+                       directory may be periodically deleted by the CLI.
+  DPRINT_MAX_THREADS   Limit the number of threads dprint uses for
+                       formatting (ex. DPRINT_MAX_THREADS=4).
+  DPRINT_CERT          Load certificate authority from PEM encoded file.
+  DPRINT_TLS_CA_STORE  Comma-separated list of order dependent certificate stores.
+                       Possible values: "mozilla" and "system".
+                       Defaults to "mozilla,system".
+  HTTPS_PROXY          Proxy to use when downloading plugins or configuration
+                       files (set HTTP_PROXY for HTTP).
 
-Commands:
-  start       Start the application. Default if no subcommand is provided
-  register    Register the application to start on login
-  unregister  Unregister the application from starting on login
-  report      Report launch history if available
-  help        Print this message or the help of the given subcommand(s)
+GETTING STARTED:
+  1. Navigate to the root directory of a code repository.
+  2. Run `dprint init` to create a dprint.json file in that directory.
+  3. Modify configuration file if necessary.
+  4. Run `dprint fmt` or `dprint check`.
 
-Options:
-  -c, --config <CONFIG>  Path to the configuration file. Defaults to
-                         `$XDG_CONFIG_HOME/app-activate/config.toml`
-  -h, --help             Print help
-  -V, --version          Print version
-```
+EXAMPLES:
+  Write formatted files to file system:
 
-## How to Install
+    dprint fmt
 
-```console
-$ cargo install --git https://github.com/0x6b/app-activate
-```
+  Check for files that haven't been formatted:
 
-## How to Configure
+    dprint check
 
-Place the configuration file at `$XDG_CONFIG_HOME/app-activate/config.toml`. If `$XDG_CONFIG_HOME` is not set, it defaults to `~/.config/app-activate/config.toml`.
+  Specify path to config file other than the default:
 
-```console
-$ CONFIG_ROOT=~/.config/app-activate
-$ mkdir -p $CONFIG_ROOT
-$ curl -o- https://raw.githubusercontent.com/0x6b/app-activate/refs/heads/main/config.toml > $CONFIG_ROOT/config.toml
-$ $EDITOR $CONFIG_ROOT/config.toml
-```
+    dprint fmt --config path/to/config/dprint.json
 
-Configure the hotkeys and applications as you like. After the launch, the changes will be picked up automatically. See the [keyboard-types](https://github.com/pyfisch/keyboard-types/blob/v0.7.0/src/key.rs#L991) crate for available keycodes. No modifier keys are supported.
+  Search for files using the specified file patterns:
 
-## How to Use as a System Service
+    dprint fmt "**/*.{ts,tsx,js,jsx,json}"
 
-You can use this as a CLI application (the classic UNIX job control method, i.e., `app-activate &`), but you can also run it as a system service. At this moment, it's working on macOS only. Tested on macOS 15.0.1 Sequoia.
-
-```sh
-$ app-activate register
-$ ps -ef | grep app-activate # ~/.cargo/bin/app-activate should be running
-```
-
-The `register` subcommand expects that:
-
-- the binary to be in the `~/.cargo/bin/app-activate`.
-- the configuration file to be in the `$XDG_CONFIG_HOME/app-activate/config.toml`.
-
-Yes, these are hardcoded.
-
-## How to Uninstall
-
-```sh
-$ app-activate unregister # if you have registered it as a system service
-$ cargo uninstall app-activate
-```
-
-## How to Contribute
-
-This is my launcher. I’ll maintain it as long as it meets my needs, or until I find a better alternative. I’m not looking for contributions, but I’m sharing the code in case it helps someone else. Please feel free to fork it and modify it however you like. I'm not interested in making this:
-
-- more capable
-- more configurable
-- more user-friendly
-- more attractive
-- more popular
-- GUI-based
-- cross-platform (beyond my future use)
-
-There should be similar and/or more capable tools available in every language and platform, so if you have a better option, feel free to keep using that.
-
-## Motivation
-
-I'm a big fan of [Apptivate](http://www.apptivateapp.com/) (macOS app) as it allows me to quickly launch apps using keyboard shortcuts. It's a simple, beautiful way to create global hotkeys for my applications, as exactly advertised.
-
-However, the last update was back in [2020-12-29](https://x.com/apptivateapp/status/1343810481417551872) and the future of the app is uncertain. Although, at this time of writing, it's totally working fine on my macOS 15.0.1 Sequoia, I wanted to create a plan B in case it stops working in the future. This repository is my attempt to create a similar app using Rust, just solely for my own use case.
-
-## License
-
-MIT. See [LICENSE](LICENSE) for more details.
+Latest version: 0.47.5 (Current is 0.47.2)
+Download the latest version by running: dprint upgrade

@@ -1,2 +1,8 @@
 [build]
 rustflags = ["-Ctarget-cpu=native"]
+
+[alias]
+# add `xtask` as an alias for `cargo run --package xtask --` for convenience
+xtask = "run --release --quiet --package xtask --"
+# add `x` as a shortcut for `xtask` for the lazy typists
+x = "xtask"

@@ -36,6 +36,14 @@ Options:
 $ cargo install --git https://github.com/0x6b/app-activate
 ```
 
+## How to Update
+
+```console
+$ git switch main
+$ git pull
+$ cargo x update
+```
+
 ## How to Configure
 
 Place the configuration file at `$XDG_CONFIG_HOME/app-activate/config.toml`. If `$XDG_CONFIG_HOME` is not set, it defaults to `~/.config/app-activate/config.toml`.

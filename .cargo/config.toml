@@ -1,2 +1,13 @@
 [build]
 rustflags = ["-Ctarget-cpu=native"]
+
+[alias]
+# add `xtask` as an alias for `cargo run --package xtask --` for convenience
+xtask = "run --release --package xtask --"
+# add `x` as a shortcut for `xtask` for the lazy typists
+x = "xtask"
+
+[env]
+# set the `CARGO_WORKSPACE_DIR` environment variable to the root of the workspace
+# See also https://github.com/rust-lang/cargo/issues/3946
+CARGO_WORKSPACE_DIR = { value = "", relative = true }

@@ -12,15 +12,12 @@ A minimal application launcher, just for my needs.
 
 ```console
 $ app-activate --help
-A minimal application launcher, just for my needs.
-
 Usage: app-activate [OPTIONS] [COMMAND]
 
 Commands:
   start       Start the application. Default if no subcommand is provided
   register    Register the application to start on login
   unregister  Unregister the application from starting on login
-  report      Report launch history if available
   help        Print this message or the help of the given subcommand(s)
 
 Options:
@@ -78,6 +75,37 @@ Yes, these are hardcoded.
 ```sh
 $ app-activate unregister # if you have registered it as a system service
 $ cargo uninstall app-activate
+```
+
+## Reporting Launch History
+
+If you have configured `db` in the configuration file, launch history will be logged to the SQLite database. You can query the database to see the launch history. The schema is as follows:
+
+```sql
+CREATE TABLE log (
+  datetime INTEGER NOT NULL, -- UNIX timestamp
+  application TEXT NOT NULL  -- path to the application
+);
+```
+
+Or you can use the `app-activate-reporter` to see the launch history.
+
+```console
+$ app-activate-reporter
+ Today                      Last 7 days                Last 30 days             
+ 2024-11-28 → 2024-11-28    2024-11-21 → 2024-11-28    2024-10-29 → 2024-11-28  
+| Application   | Count |  | Application   | Count |  | Application   | Count |
+| ------------- | ----: |  | ------------- | ----: |  | ------------- | ----: |
+| Ghostty       |     5 |  | Slack         |   266 |  | Slack         |   990 |
+| Slack         |     3 |  | Google Chrome |   172 |  | Firefox       |   725 |
+| Google Meet   |     2 |  | Firefox       |   155 |  | Ghostty       |   560 |
+| Firefox       |     2 |  | Ghostty       |   152 |  | Google Chrome |   549 |
+| RustRover     |     1 |  | Wezlix        |    50 |  | Wezlix        |   304 |
+| Google Chrome |     1 |  | RustRover     |    44 |  | RustRover     |   111 |
+| -             |     - |  | Google Meet   |    34 |  | Google Meet   |    98 |
+| -             |     - |  | Calendar      |    25 |  | Notion        |    90 |
+| -             |     - |  | Zed           |    18 |  | Calendar      |    69 |
+| -             |     - |  | Notion        |    16 |  | Zed           |    58 |
 ```
 
 ## How to Contribute

@@ -12,8 +12,6 @@ A minimal application launcher, just for my needs.
 
 ```console
 $ app-activate --help
-A minimal application launcher, just for my needs.
-
 Usage: app-activate [OPTIONS] [COMMAND]
 
 Commands:

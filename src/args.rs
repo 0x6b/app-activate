@@ -5,7 +5,7 @@ use env_logger::Env;
 use log::debug;
 
 #[derive(Debug, Parser)]
-#[clap(version, about)]
+#[clap(version)]
 pub struct Args {
     /// Path to the configuration file. Defaults to `$XDG_CONFIG_HOME/app-activate/config.toml`.
     #[arg(short, long)]

@@ -2,7 +2,7 @@ leader_key = "F10" # A hotkey to trigger the launcher
 timeout_ms = 600 # The time in milliseconds to wait for the next key press
 db = "/path/to/app-activate.sqlite" # Optional. If it exists, record launched date (as unix timestamp in sec) and path to the application will be logged to SQLite database
 
-# A pair of second hotkey and absolute path to the application
+# Primary applications (single leader key press)
 [applications]
 c = "/System/Applications/Calendar.app" # means that pressing the `leader_key`, (releasing it), and then pressing `c` within the `timeout_ms` will open the Calendar app
 f = "/Applications/Firefox.app"
@@ -10,3 +10,11 @@ g = "/Applications/Google Chrome.app"
 i = "/System/Library/CoreServices/Finder.app"
 s = "/Applications/Slack.app"
 t = "/Applications/Ghostty.app"
+
+# Secondary applications (double leader key press)
+# Press leader_key twice quickly, then press one of these keys
+[secondary_applications]
+m = "/System/Applications/Mail.app"
+n = "/System/Applications/Notes.app"
+p = "/Applications/Photos.app"
+r = "/System/Applications/Reminders.app"

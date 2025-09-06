@@ -19,10 +19,12 @@ use toml::from_str;
 pub struct Config {
     pub leader_key: String,
     pub applications: BTreeMap<String, PathBuf>,
+    #[serde(default)]
+    pub secondary_applications: BTreeMap<String, PathBuf>,
     pub timeout_ms: u64,
     pub db: Option<PathBuf>,
     #[serde(skip)]
-    pub(crate) path: PathBuf, // For internal use. Not deserialized from config file
+    pub(crate) path: PathBuf, // For internal use. Not deserialized from the config file
 }
 
 impl Config {
@@ -49,26 +51,13 @@ impl Config {
         config.path = path.as_ref().to_path_buf();
         Ok(config)
     }
-
+    
     pub fn applications(&self) -> Vec<(HotKey, PathBuf)> {
-        self.applications
-            .iter()
-            .map(|(key, path)| {
-                let key = if key.len() == 1 {
-                    let c = key.chars().next().unwrap();
-                    if c.is_ascii_alphabetic() {
-                        format!("Key{}", c.to_ascii_uppercase())
-                    } else if c.is_ascii_digit() {
-                        format!("Digit{}", c)
-                    } else {
-                        key.clone()
-                    }
-                } else {
-                    key.clone()
-                };
-                (HotKey::new(None, Code::from_str(&key).unwrap()), path.to_path_buf())
-            })
-            .collect::<Vec<(_, _)>>()
+        Self::process_applications(&self.applications)
+    }
+
+    pub fn secondary_applications(&self) -> Vec<(HotKey, PathBuf)> {
+        Self::process_applications(&self.secondary_applications)
     }
 
     pub fn watch(&self, tx: Sender<()>) -> notify::Result<notify::RecommendedWatcher> {
@@ -92,5 +81,25 @@ impl Config {
         watcher.watch(watch_path, notify::RecursiveMode::NonRecursive)?;
 
         Ok(watcher)
+    }
+
+    fn process_applications(apps: &BTreeMap<String, PathBuf>) -> Vec<(HotKey, PathBuf)> {
+        apps.iter()
+            .map(|(key, path)| {
+                let key = if key.len() == 1 {
+                    let c = key.chars().next().unwrap();
+                    if c.is_ascii_alphabetic() {
+                        format!("Key{}", c.to_ascii_uppercase())
+                    } else if c.is_ascii_digit() {
+                        format!("Digit{}", c)
+                    } else {
+                        key.clone()
+                    }
+                } else {
+                    key.clone()
+                };
+                (HotKey::new(None, Code::from_str(&key).unwrap()), path.to_path_buf())
+            })
+            .collect()
     }
 }

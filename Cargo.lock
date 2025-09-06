@@ -96,7 +96,7 @@ checksum = "b0674a1ddeecb70197781e945de4b3b8ffb61fa939a5597bcf48503737663100"
 
 [[package]]
 name = "app-activate"
-version = "0.7.5"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "clap",

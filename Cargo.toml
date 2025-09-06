@@ -18,7 +18,7 @@ members = ["xtask"]
 
 [workspace.package]
 version = "0.7.4"
-edition = "2021"
+edition = "2024"
 
 [workspace.dependencies]
 # Error handling

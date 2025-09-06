@@ -5,6 +5,7 @@ A minimal application launcher, just for my needs.
 ## Features
 
 - Two-shot global hotkeys to launch or activate an app, with the option to log to an SQLite database
+- Double-tap leader key support for secondary application sets
 - Text-based configuration
 - No GUI
 
@@ -53,6 +54,17 @@ $ $EDITOR $CONFIG_ROOT/config.toml
 ```
 
 Configure the hotkeys and applications as you like. After the launch, the changes will be picked up automatically. See the [keyboard-types](https://github.com/pyfisch/keyboard-types/blob/v0.7.0/src/key.rs#L991) crate for available keycodes. No modifier keys are supported.
+
+### Application Sets
+
+You can configure two sets of applications:
+
+- **Primary applications** (`[applications]` section): Activated by pressing the leader key once, then an application key
+- **Secondary applications** (`[secondary_applications]` section): Activated by pressing the leader key twice quickly, then an application key
+
+Example workflow:
+- Press <kbd>F10</kbd> → press <kbd>c</kbd> → launches Calendar (primary)
+- Press <kbd>F10</kbd> → press <kbd>F10</kbd> again → press <kbd>m</kbd> → launches Mail (secondary)
 
 ## How to Use as a System Service
 

@@ -96,7 +96,7 @@ checksum = "b0674a1ddeecb70197781e945de4b3b8ffb61fa939a5597bcf48503737663100"
 
 [[package]]
 name = "app-activate"
-version = "0.7.5"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -2140,7 +2140,6 @@ checksum = "b9cc00251562a284751c9973bace760d86c0276c471b4be569fe6b068ee97a56"
 name = "xtask"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "clap",
  "cmd_lib",
  "env_logger",

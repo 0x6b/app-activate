@@ -19,10 +19,9 @@ use xdg::BaseDirectories;
 
 pub fn get_config(config: Option<PathBuf>) -> anyhow::Result<Config> {
     let path = config.unwrap_or_else(|| {
-        let path = BaseDirectories::with_prefix("app-activate")
-            .unwrap()
-            .place_config_file("config.toml")
-            .unwrap();
+        let base_dirs = BaseDirectories::with_prefix("app-activate");
+        let path = base_dirs.place_config_file("config.toml")
+            .expect("Failed to place config file");
         debug!("Config file not provided. Using default at {path:?}");
         path
     });

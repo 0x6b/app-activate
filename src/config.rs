@@ -76,18 +76,16 @@ impl Config {
         let debounce_duration = Duration::from_millis(100);
 
         let mut watcher = recommended_watcher(move |result: Result<Event, _>| {
-            if let Ok(event) = result {
-                if event.kind.is_modify() {
+            if let Ok(event) = result
+                && event.kind.is_modify() {
                     let now = Instant::now();
-                    if let Some(last) = last_event {
-                        if now.duration_since(last) < debounce_duration {
+                    if let Some(last) = last_event
+                        && now.duration_since(last) < debounce_duration {
                             return;
                         }
-                    }
                     last_event = Some(now);
                     let _ = tx.send(());
                 }
-            }
         })?;
 
         let watch_path = self.path.parent().unwrap_or(&self.path);

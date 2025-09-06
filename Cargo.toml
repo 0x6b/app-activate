@@ -17,22 +17,22 @@ path = "src/reporter.rs"
 members = ["xtask"]
 
 [workspace.package]
-version = "0.7.4"
-edition = "2021"
+version = "0.7.5"
+edition = "2024"
 
 [workspace.dependencies]
 # Error handling
-anyhow = "1.0.92"
+anyhow = "1.0.99"
 
 # CLI parsing
-clap = { version = "4.5.20", features = ["derive"] }
+clap = { version = "4.5.47", features = ["derive"] }
 
 # Run shell command easily
-cmd_lib = "1.9.5"
+cmd_lib = "2.0.0"
 
 # Logging
-env_logger = { version = "0.11.5", default-features = false, features = ["humantime"] }
-log = "0.4.22"
+env_logger = { version = "0.11.8", default-features = false, features = ["humantime"] }
+log = "0.4.28"
 
 [dependencies]
 # Error handling
@@ -45,30 +45,30 @@ clap.workspace = true
 cmd_lib.workspace = true
 
 # Home and XDG directories. Could be consolidated
-dirs = "5.0.1"
-xdg = "2.5.2"
+dirs = "6.0.0"
+xdg = "3.0.0"
 
 # Logging
 env_logger.workspace = true
 log.workspace = true
 
 # Event loop, hotkey registration and management, and open app
-winit = { version = "0.30.5", default-features = false, features = ["rwh_06"] }
-global-hotkey = { version = "0.6.3", default-features = false }
-open = "5.3.0"
+winit = { version = "0.30.12", default-features = false, features = ["rwh_06"] }
+global-hotkey = { version = "0.7.0", default-features = false }
+open = "5.3.2"
 
 # File system watcher
-notify = "7.0.0"
+notify = "8.2.0"
 
 # Ser/de
-serde = "1.0.214"
-toml = { version = "0.8.19", default-features = false, features = ["parse"] }
+serde = "1.0.219"
+toml = { version = "0.9.5", default-features = false, features = ["parse", "serde"] }
 
 # SQLite3 for logging and reporting
-rusqlite = { version = "0.32.1", features = ["bundled"] }
+rusqlite = { version = "0.37.0", features = ["bundled"] }
 
 # Date and time
-jiff = "0.1.14"
+jiff = "0.2.15"
 
 [profile.release]
 # For speed. See also .cargo/config.toml

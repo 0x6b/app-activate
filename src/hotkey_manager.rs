@@ -91,8 +91,8 @@ impl HotKeyManager {
                     match open::that_detached(path) {
                         Ok(()) => {
                             debug!("Successfully launched {path:?}");
-                            if let Some(conn) = conn.as_ref() {
-                                if conn
+                            if let Some(conn) = conn.as_ref()
+                                && conn
                                     .execute(
                                         "INSERT INTO log (datetime, application) VALUES (?1, ?2)",
                                         (
@@ -107,7 +107,6 @@ impl HotKeyManager {
                                 {
                                     error!("Failed to insert a log to SQLite database")
                                 }
-                            }
                         }
                         Err(err) => error!("Failed to launch {path:?}: {err}"),
                     }

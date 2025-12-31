@@ -76,10 +76,10 @@ impl Config {
                 return;
             }
             let now = Instant::now();
-            if let Some(last) = last_event {
-                if now.duration_since(last) < debounce_duration {
-                    return;
-                }
+            if let Some(last) = last_event
+                && now.duration_since(last) < debounce_duration
+            {
+                return;
             }
             last_event = Some(now);
             let _ = tx.send(());

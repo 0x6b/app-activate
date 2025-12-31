@@ -3,7 +3,7 @@ use std::{path::PathBuf, rc::Rc, sync::mpsc::channel, thread::spawn, time::Insta
 use anyhow::Result;
 use global_hotkey::{GlobalHotKeyEvent, HotKeyState};
 use log::{debug, error};
-use rusqlite::Connection;
+use rusqlite::{Connection, Error};
 #[cfg(target_os = "macos")]
 use winit::platform::macos::EventLoopBuilderExtMacOS;
 use winit::{

@@ -55,36 +55,24 @@ impl HotKeyManager {
         self.leader_key = leader_key;
         self.state = State::Waiting;
         self.timeout = Duration::from_millis(config.timeout_ms);
-        self.applications.clear();
         self.applications = config.applications();
-        self.secondary_applications.clear();
         self.secondary_applications = config.secondary_applications();
-
         Ok(())
     }
 
     pub fn is_timed_out(&self) -> bool {
-        match self.state {
-            State::AwaitingSecondKey { pressed_at, .. } => pressed_at.elapsed() > self.timeout,
-            _ => false,
-        }
+        matches!(
+            self.state,
+            State::AwaitingSecondKey { pressed_at, .. } if pressed_at.elapsed() > self.timeout
+        )
     }
 
-    pub fn handle(&mut self, event: GlobalHotKeyEvent, conn: Rc<Option<Connection>>) {
+    pub fn handle(&mut self, event: GlobalHotKeyEvent, conn: Option<Rc<Connection>>) {
         debug!("Handling GlobalHotKeyEvent: {event:?}");
         match &mut self.state {
             State::Waiting if event.id == self.leader_key.id() => {
                 trace!("{event:?}");
-                let registered_keys = self
-                    .applications
-                    .iter()
-                    .map(|(hotkey, _)| {
-                        trace!("Registering second shot hotkey: {hotkey:?}");
-                        self.manager.register(*hotkey).unwrap();
-                        *hotkey
-                    })
-                    .collect();
-
+                let registered_keys = self.register_keys(&self.applications.clone());
                 self.state = State::AwaitingSecondKey {
                     pressed_at: Instant::now(),
                     registered_keys,
@@ -92,12 +80,10 @@ impl HotKeyManager {
                 };
             }
             State::AwaitingSecondKey { is_secondary, .. } if event.id == self.leader_key.id() => {
-                // Leader key pressed while waiting for second key - swap app sets
                 let current_is_secondary = *is_secondary;
                 self.swap_app_sets(current_is_secondary);
             }
             State::AwaitingSecondKey { is_secondary, .. } => {
-                // Look for the hotkey in the appropriate app set
                 let app_set =
                     if *is_secondary { &self.secondary_applications } else { &self.applications };
 
@@ -108,20 +94,19 @@ impl HotKeyManager {
                         Ok(()) => {
                             debug!("Successfully launched {path:?}");
                             if let Some(conn) = conn.as_ref()
-                                && conn
-                                    .execute(
-                                        "INSERT INTO log (datetime, application) VALUES (?1, ?2)",
-                                        (
-                                            SystemTime::now()
-                                                .duration_since(UNIX_EPOCH)
-                                                .unwrap() // should always success
-                                                .as_secs() as i64,
-                                            path.to_string_lossy(),
-                                        ),
-                                    )
-                                    .is_err()
+                                && let Err(e) = conn.execute(
+                                    "INSERT INTO log (datetime, application) VALUES (?1, ?2)",
+                                    (
+                                        SystemTime::now()
+                                            .duration_since(UNIX_EPOCH)
+                                            .unwrap()
+                                            .as_secs()
+                                            as i64,
+                                        path.to_string_lossy(),
+                                    ),
+                                )
                             {
-                                error!("Failed to insert a log to SQLite database")
+                                error!("Failed to insert a log to SQLite database: {e}");
                             }
                         }
                         Err(err) => error!("Failed to launch {path:?}: {err}"),
@@ -136,37 +121,20 @@ impl HotKeyManager {
 
     pub fn reset_state(&mut self) {
         if let State::AwaitingSecondKey { registered_keys, .. } = &self.state {
-            for hotkey in registered_keys {
-                trace!("Unregistering {hotkey:?}");
-                self.manager.unregister(*hotkey).unwrap();
-            }
+            self.unregister_keys(registered_keys);
         }
         self.state = State::Waiting;
     }
 
     fn swap_app_sets(&mut self, current_is_secondary: bool) {
-        // Unregister current app keys (but keep the leader key registered)
         if let State::AwaitingSecondKey { registered_keys, .. } = &self.state {
-            for hotkey in registered_keys {
-                trace!("Unregistering {hotkey:?} for app set swap");
-                self.manager.unregister(*hotkey).unwrap();
-            }
+            self.unregister_keys(registered_keys);
         }
 
-        // Register the opposite app set
         let new_app_set =
             if current_is_secondary { &self.applications } else { &self.secondary_applications };
+        let registered_keys = self.register_keys(&new_app_set.clone());
 
-        let registered_keys = new_app_set
-            .iter()
-            .map(|(hotkey, _)| {
-                trace!("Registering {hotkey:?} for app set swap");
-                self.manager.register(*hotkey).unwrap();
-                *hotkey
-            })
-            .collect();
-
-        // Update state with the new app set and reset timeout
         self.state = State::AwaitingSecondKey {
             pressed_at: Instant::now(),
             registered_keys,
@@ -177,5 +145,22 @@ impl HotKeyManager {
             "Swapped to {} app set",
             if !current_is_secondary { "secondary" } else { "primary" }
         );
+    }
+
+    fn register_keys(&self, apps: &[(HotKey, PathBuf)]) -> Vec<HotKey> {
+        apps.iter()
+            .map(|(hotkey, _)| {
+                trace!("Registering hotkey: {hotkey:?}");
+                self.manager.register(*hotkey).unwrap();
+                *hotkey
+            })
+            .collect()
+    }
+
+    fn unregister_keys(&self, keys: &[HotKey]) {
+        for hotkey in keys {
+            trace!("Unregistering {hotkey:?}");
+            self.manager.unregister(*hotkey).unwrap();
+        }
     }
 }

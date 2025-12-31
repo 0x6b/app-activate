@@ -24,7 +24,19 @@ pub struct Config {
     pub timeout_ms: u64,
     pub db: Option<PathBuf>,
     #[serde(skip)]
-    pub(crate) path: PathBuf, // For internal use. Not deserialized from the config file
+    pub(crate) path: PathBuf,
+}
+
+fn normalize_key(key: &str) -> String {
+    if let Some(c) = key.chars().next() {
+        if key.len() == 1 && c.is_ascii_alphabetic() {
+            return format!("Key{}", c.to_ascii_uppercase());
+        }
+        if key.len() == 1 && c.is_ascii_digit() {
+            return format!("Digit{c}");
+        }
+    }
+    key.to_string()
 }
 
 impl Config {
@@ -32,21 +44,15 @@ impl Config {
     where
         P: AsRef<Path> + Debug,
     {
-        let config = match read_to_string(&path) {
-            Ok(config) => config,
-            Err(why) => {
-                eprintln!("Failed to read config file at {path:?}: {why}");
-                exit(1);
-            }
-        };
+        let config_str = read_to_string(&path).unwrap_or_else(|why| {
+            eprintln!("Failed to read config file at {path:?}: {why}");
+            exit(1);
+        });
 
-        let mut config = match from_str::<Config>(&config) {
-            Ok(config) => config,
-            Err(why) => {
-                eprintln!("Failed to parse config file: {why}");
-                exit(1);
-            }
-        };
+        let mut config = from_str::<Config>(&config_str).unwrap_or_else(|why| {
+            eprintln!("Failed to parse config file: {why}");
+            exit(1);
+        });
 
         config.path = path.as_ref().to_path_buf();
         Ok(config)
@@ -65,18 +71,18 @@ impl Config {
         let debounce_duration = Duration::from_millis(100);
 
         let mut watcher = recommended_watcher(move |result: Result<Event, _>| {
-            if let Ok(event) = result
-                && event.kind.is_modify()
-            {
-                let now = Instant::now();
-                if let Some(last) = last_event
-                    && now.duration_since(last) < debounce_duration
-                {
-                    return;
-                }
-                last_event = Some(now);
-                let _ = tx.send(());
+            let Ok(event) = result else { return };
+            if !event.kind.is_modify() {
+                return;
             }
+            let now = Instant::now();
+            if let Some(last) = last_event
+                && now.duration_since(last) < debounce_duration
+            {
+                return;
+            }
+            last_event = Some(now);
+            let _ = tx.send(());
         })?;
 
         let watch_path = self.path.parent().unwrap_or(&self.path);
@@ -88,19 +94,8 @@ impl Config {
     fn process_applications(apps: &BTreeMap<String, PathBuf>) -> Vec<(HotKey, PathBuf)> {
         apps.iter()
             .map(|(key, path)| {
-                let key = if key.len() == 1 {
-                    let c = key.chars().next().unwrap();
-                    if c.is_ascii_alphabetic() {
-                        format!("Key{}", c.to_ascii_uppercase())
-                    } else if c.is_ascii_digit() {
-                        format!("Digit{c}")
-                    } else {
-                        key.clone()
-                    }
-                } else {
-                    key.clone()
-                };
-                (HotKey::new(None, Code::from_str(&key).unwrap()), path.to_path_buf())
+                let key = normalize_key(key);
+                (HotKey::new(None, Code::from_str(&key).unwrap()), path.clone())
             })
             .collect()
     }

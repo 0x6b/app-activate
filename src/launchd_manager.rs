@@ -4,7 +4,7 @@ use std::{
     path::PathBuf,
 };
 
-use anyhow::{Result, bail};
+use anyhow::Result;
 use cmd_lib::{run_cmd, run_fun};
 use dirs::home_dir;
 use log::{info, warn};
@@ -19,27 +19,20 @@ pub struct LaunchdManager {
 
 impl LaunchdManager {
     pub fn new(name: &str) -> Result<Self> {
-        if cfg!(target_os = "macos") {
-            let id = run_fun!(/usr/bin/id -u)?;
-            let home_dir = home_dir().unwrap();
-            let bin = home_dir.join(".cargo").join("bin").join(name);
-            let plist = home_dir
-                .join("Library")
-                .join("LaunchAgents")
-                .join(format!("{name}.plist"));
-            Ok(Self { name: name.to_string(), id, bin, plist })
-        } else {
-            bail!("Service registration not supported on this platform");
-        }
+        let id = run_fun!(/usr/bin/id -u)?;
+        let home_dir = home_dir().unwrap();
+        let bin = home_dir.join(".cargo/bin").join(name);
+        let plist = home_dir.join("Library/LaunchAgents").join(format!("{name}.plist"));
+        Ok(Self { name: name.to_string(), id, bin, plist })
     }
 
     pub fn register(&self) -> Result<()> {
-        let name = self.name.clone();
-        let id = self.id.clone();
-        let plist = self.plist.clone();
-        let mut file = File::options().write(true).create(true).truncate(true).open(&plist)?;
+        let (name, id, plist) = (&self.name, &self.id, &self.plist);
+        let mut file = File::options().write(true).create(true).truncate(true).open(plist)?;
 
-        let _= file.write(format!(r#"<?xml version="1.0" encoding="UTF-8"?>
+        file.write_all(
+            format!(
+                r#"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
     <dict>
@@ -62,47 +55,36 @@ impl LaunchdManager {
     </dict>
 </plist>
 "#,
-                                  self.name, self.bin.to_string_lossy()).as_bytes());
+                self.name,
+                self.bin.to_string_lossy()
+            )
+            .as_bytes(),
+        )?;
 
-        // Just record the result of each command and continue on error, because I'm not 100% sure
-        // what is the best way to register a service due to sparse documentation...
-        match run_cmd!(launchctl bootstrap gui/$id $plist) {
-            Ok(_) => info!("Bootstrapped gui/{id}/{name}"),
-            Err(why) => warn!("Failed to bootstrap gui/{id}/{name}: {why}"),
-        }
-        match run_cmd!(launchctl load -w $plist) {
-            Ok(_) => info!("Registered app-activate"),
-            Err(why) => warn!("Failed to load {name}: {why}"),
-        }
-        match run_cmd!(launchctl enable gui/$id/$name) {
-            Ok(_) => info!("Enabled gui/{id}/{name}"),
-            Err(why) => warn!("Failed to enable gui/{id}/{name}: {why}"),
-        };
-        match run_cmd!(launchctl start $name) {
-            Ok(_) => info!("Started {name}"),
-            Err(why) => warn!("Failed to start gui/{id}/{name}: {why}"),
-        };
+        log_cmd(run_cmd!(launchctl bootstrap gui/$id $plist), "bootstrap");
+        log_cmd(run_cmd!(launchctl load -w $plist), "load");
+        log_cmd(run_cmd!(launchctl enable gui/$id/$name), "enable");
+        log_cmd(run_cmd!(launchctl start $name), "start");
         Ok(())
     }
 
     pub fn unregister(&self) -> Result<()> {
-        let name = self.name.clone();
-        let plist = self.plist.clone();
+        let (name, plist) = (&self.name, &self.plist);
 
-        // Just record the result of each command and continue on error, because I'm not 100% sure
-        // what is the best way to register a service due to sparse documentation...
-        match run_cmd!(launchctl stop $name) {
-            Ok(_) => info!("Stopped {name}"),
-            Err(why) => warn!("Failed to stop {name}: {why}"),
-        }
-        match run_cmd!(launchctl unload -w $plist) {
-            Ok(_) => info!("Unloaded {name}"),
-            Err(why) => warn!("Failed to unload {name}: {why}"),
-        };
-        match remove_file(&plist) {
-            Ok(_) => info!("Removed {plist:?}"),
+        log_cmd(run_cmd!(launchctl stop $name), "stop");
+        log_cmd(run_cmd!(launchctl unload -w $plist), "unload");
+
+        match remove_file(plist) {
+            Ok(()) => info!("Removed {plist:?}"),
             Err(why) => warn!("Failed to remove {plist:?}: {why}"),
         }
         Ok(())
+    }
+}
+
+fn log_cmd(result: std::io::Result<()>, cmd: &str) {
+    match result {
+        Ok(()) => info!("launchctl {cmd}: success"),
+        Err(why) => warn!("launchctl {cmd}: {why}"),
     }
 }

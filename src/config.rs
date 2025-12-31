@@ -11,7 +11,7 @@ use std::{
 
 use anyhow::Result;
 use global_hotkey::hotkey::{Code, HotKey};
-use notify::{recommended_watcher, Event, Watcher};
+use notify::{Event, RecommendedWatcher, Watcher, recommended_watcher};
 use serde::Deserialize;
 use toml::from_str;
 
@@ -51,7 +51,7 @@ impl Config {
         config.path = path.as_ref().to_path_buf();
         Ok(config)
     }
-    
+
     pub fn applications(&self) -> Vec<(HotKey, PathBuf)> {
         Self::process_applications(&self.applications)
     }
@@ -60,21 +60,23 @@ impl Config {
         Self::process_applications(&self.secondary_applications)
     }
 
-    pub fn watch(&self, tx: Sender<()>) -> notify::Result<notify::RecommendedWatcher> {
+    pub fn watch(&self, tx: Sender<()>) -> notify::Result<RecommendedWatcher> {
         let mut last_event = None;
         let debounce_duration = Duration::from_millis(100);
 
         let mut watcher = recommended_watcher(move |result: Result<Event, _>| {
             if let Ok(event) = result
-                && event.kind.is_modify() {
-                    let now = Instant::now();
-                    if let Some(last) = last_event
-                        && now.duration_since(last) < debounce_duration {
-                            return;
-                        }
-                    last_event = Some(now);
-                    let _ = tx.send(());
+                && event.kind.is_modify()
+            {
+                let now = Instant::now();
+                if let Some(last) = last_event
+                    && now.duration_since(last) < debounce_duration
+                {
+                    return;
                 }
+                last_event = Some(now);
+                let _ = tx.send(());
+            }
         })?;
 
         let watch_path = self.path.parent().unwrap_or(&self.path);
@@ -91,7 +93,7 @@ impl Config {
                     if c.is_ascii_alphabetic() {
                         format!("Key{}", c.to_ascii_uppercase())
                     } else if c.is_ascii_digit() {
-                        format!("Digit{}", c)
+                        format!("Digit{c}")
                     } else {
                         key.clone()
                     }

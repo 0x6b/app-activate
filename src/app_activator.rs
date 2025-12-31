@@ -1,6 +1,6 @@
-use std::{path::PathBuf, rc::Rc, thread::spawn, time::Instant};
+use std::{path::PathBuf, rc::Rc, sync::mpsc::channel, thread::spawn, time::Instant};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use global_hotkey::{GlobalHotKeyEvent, HotKeyState};
 use log::{debug, error};
 use rusqlite::Connection;
@@ -56,7 +56,7 @@ impl AppActivator {
         let config_path = self.config.path.clone();
         let hotkey_manager = HotKeyManager::from_config(&self.config)?;
 
-        let (config_tx, config_rx) = std::sync::mpsc::channel();
+        let (config_tx, config_rx) = channel();
         let _watcher = self.config.watch(config_tx)?;
 
         let event_loop_proxy = event_loop.create_proxy();

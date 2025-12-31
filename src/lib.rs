@@ -7,6 +7,7 @@ mod usage_reporter;
 
 use std::{path::PathBuf, process::exit};
 
+use anyhow::Result;
 pub use app_activator::AppActivator;
 pub use config::Config;
 pub use hotkey_manager::HotKeyManager;
@@ -17,10 +18,11 @@ use log::{debug, error};
 pub use usage_reporter::UsageReporter;
 use xdg::BaseDirectories;
 
-pub fn get_config(config: Option<PathBuf>) -> anyhow::Result<Config> {
+pub fn get_config(config: Option<PathBuf>) -> Result<Config> {
     let path = config.unwrap_or_else(|| {
         let base_dirs = BaseDirectories::with_prefix("app-activate");
-        let path = base_dirs.place_config_file("config.toml")
+        let path = base_dirs
+            .place_config_file("config.toml")
             .expect("Failed to place config file");
         debug!("Config file not provided. Using default at {path:?}");
         path

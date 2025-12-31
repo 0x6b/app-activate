@@ -7,10 +7,11 @@ use std::{
 
 use anyhow::Result;
 use global_hotkey::{
-    hotkey::{Code, HotKey},
     GlobalHotKeyEvent, GlobalHotKeyManager,
+    hotkey::{Code, HotKey},
 };
 use log::{debug, error, trace};
+use open::that_detached;
 use rusqlite::Connection;
 
 use crate::Config;
@@ -73,7 +74,7 @@ impl HotKeyManager {
         debug!("Handling GlobalHotKeyEvent: {event:?}");
         match &mut self.state {
             State::Waiting if event.id == self.leader_key.id() => {
-                trace!("{:?}", event);
+                trace!("{event:?}");
                 let registered_keys = self
                     .applications
                     .iter()
@@ -84,8 +85,11 @@ impl HotKeyManager {
                     })
                     .collect();
 
-                self.state =
-                    State::AwaitingSecondKey { pressed_at: Instant::now(), registered_keys, is_secondary: false };
+                self.state = State::AwaitingSecondKey {
+                    pressed_at: Instant::now(),
+                    registered_keys,
+                    is_secondary: false,
+                };
             }
             State::AwaitingSecondKey { is_secondary, .. } if event.id == self.leader_key.id() => {
                 // Leader key pressed while waiting for second key - swap app sets
@@ -94,15 +98,13 @@ impl HotKeyManager {
             }
             State::AwaitingSecondKey { is_secondary, .. } => {
                 // Look for the hotkey in the appropriate app set
-                let app_set = if *is_secondary {
-                    &self.secondary_applications
-                } else {
-                    &self.applications
-                };
-                
-                if let Some((_, path)) = app_set.iter().find(|(hotkey, _)| hotkey.id() == event.id) {
+                let app_set =
+                    if *is_secondary { &self.secondary_applications } else { &self.applications };
+
+                if let Some((_, path)) = app_set.iter().find(|(hotkey, _)| hotkey.id() == event.id)
+                {
                     debug!("Found hotkey for {path:?}");
-                    match open::that_detached(path) {
+                    match that_detached(path) {
                         Ok(()) => {
                             debug!("Successfully launched {path:?}");
                             if let Some(conn) = conn.as_ref()
@@ -118,9 +120,9 @@ impl HotKeyManager {
                                         ),
                                     )
                                     .is_err()
-                                {
-                                    error!("Failed to insert a log to SQLite database")
-                                }
+                            {
+                                error!("Failed to insert a log to SQLite database")
+                            }
                         }
                         Err(err) => error!("Failed to launch {path:?}: {err}"),
                     }
@@ -152,11 +154,8 @@ impl HotKeyManager {
         }
 
         // Register the opposite app set
-        let new_app_set = if current_is_secondary {
-            &self.applications
-        } else {
-            &self.secondary_applications
-        };
+        let new_app_set =
+            if current_is_secondary { &self.applications } else { &self.secondary_applications };
 
         let registered_keys = new_app_set
             .iter()
@@ -174,6 +173,9 @@ impl HotKeyManager {
             is_secondary: !current_is_secondary,
         };
 
-        debug!("Swapped to {} app set", if !current_is_secondary { "secondary" } else { "primary" });
+        debug!(
+            "Swapped to {} app set",
+            if !current_is_secondary { "secondary" } else { "primary" }
+        );
     }
 }

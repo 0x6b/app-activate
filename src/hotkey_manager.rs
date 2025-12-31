@@ -115,7 +115,7 @@ impl HotKeyManager {
                                             SystemTime::now()
                                                 .duration_since(UNIX_EPOCH)
                                                 .unwrap() // should always success
-                                                .as_secs(),
+                                                .as_secs() as i64,
                                             path.to_string_lossy(),
                                         ),
                                     )

@@ -25,7 +25,7 @@ impl Args {
     }
 }
 
-#[derive(Debug, Clone, Parser)]
+#[derive(Debug, Clone, Copy, Parser)]
 pub enum Command {
     /// Start the application. Default if no subcommand is provided.
     Start,

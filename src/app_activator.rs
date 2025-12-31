@@ -1,6 +1,6 @@
 use std::{path::PathBuf, rc::Rc, sync::mpsc::channel, thread::spawn, time::Instant};
 
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use global_hotkey::{GlobalHotKeyEvent, HotKeyState};
 use log::{debug, error};
 use rusqlite::Connection;
@@ -21,27 +21,30 @@ use crate::{
 
 pub struct AppActivator {
     config: Config,
-    conn: Rc<Option<Connection>>,
+    conn: Option<Rc<Connection>>,
 }
 
 struct ConfigChangeEvent;
 
 impl AppActivator {
     pub fn new(config: Config) -> Result<Self> {
-        let conn = if let Some(db) = config.db.clone() {
-            let conn = Connection::open(&db)?;
-            conn.execute(
-                r#"CREATE TABLE IF NOT EXISTS log (
-                datetime INTEGER NOT NULL,
-                application TEXT NOT NULL
-            )"#,
-                (),
-            )?;
-            Some(conn)
-        } else {
-            None
-        };
-        Ok(Self { config, conn: Rc::new(conn) })
+        let conn = config
+            .db
+            .as_ref()
+            .map(|db| {
+                let conn = Connection::open(db)?;
+                conn.execute(
+                    r#"CREATE TABLE IF NOT EXISTS log (
+                        datetime INTEGER NOT NULL,
+                        application TEXT NOT NULL
+                    )"#,
+                    (),
+                )?;
+                Ok::<_, Error>(conn)
+            })
+            .transpose()?
+            .map(Rc::new);
+        Ok(Self { config, conn })
     }
 
     pub fn start(&self) -> Result<()> {
@@ -61,24 +64,25 @@ impl AppActivator {
 
         let event_loop_proxy = event_loop.create_proxy();
         spawn(move || {
-            while let Ok(()) = config_rx.recv() {
+            while config_rx.recv().is_ok() {
                 let _ = event_loop_proxy.send_event(ConfigChangeEvent);
             }
         });
+
         event_loop
             .run_app(&mut State {
                 config_path,
                 hotkey_manager,
                 conn: self.conn.clone(),
             })
-            .map_err(|e| anyhow!("{e}"))
+            .map_err(anyhow::Error::from)
     }
 }
 
 struct State {
     config_path: PathBuf,
     hotkey_manager: HotKeyManager,
-    conn: Rc<Option<Connection>>,
+    conn: Option<Rc<Connection>>,
 }
 
 impl ApplicationHandler<ConfigChangeEvent> for State {
@@ -86,11 +90,9 @@ impl ApplicationHandler<ConfigChangeEvent> for State {
         if let Ok(event) = GlobalHotKeyEvent::receiver().try_recv() {
             debug!("Received hotkey event: {event:?}");
 
-            // Only process Pressed events
             if event.state == HotKeyState::Pressed {
                 self.hotkey_manager.handle(event, self.conn.clone());
 
-                // Update control flow based on new state
                 let control_flow = match &self.hotkey_manager.state {
                     AwaitingSecondKey { .. } => {
                         debug!("Waiting until timeout");
@@ -105,7 +107,6 @@ impl ApplicationHandler<ConfigChangeEvent> for State {
             }
         }
 
-        // Check for timeout if in LeaderPressed state
         if self.hotkey_manager.is_timed_out() {
             debug!("Leader key timeout. Resetting state");
             self.hotkey_manager.reset_state();
@@ -113,20 +114,17 @@ impl ApplicationHandler<ConfigChangeEvent> for State {
         }
     }
 
-    fn resumed(&mut self, _: &ActiveEventLoop) {
-        // do nothing
-    }
+    fn resumed(&mut self, _: &ActiveEventLoop) {}
 
     fn user_event(&mut self, _: &ActiveEventLoop, _: ConfigChangeEvent) {
         debug!("Config file changed. Reloading from {}", self.config_path.display());
-        let config = Config::from(&self.config_path).unwrap();
-        match self.hotkey_manager.update_config(&config) {
-            Ok(..) => debug!("Config updated successfully: {config:?}"),
+        match Config::from(&self.config_path)
+            .and_then(|config| self.hotkey_manager.update_config(&config).map(|_| config))
+        {
+            Ok(config) => debug!("Config updated successfully: {config:?}"),
             Err(why) => error!("Failed to update config: {why}"),
         }
     }
 
-    fn window_event(&mut self, _: &ActiveEventLoop, _: WindowId, _: WindowEvent) {
-        // do nothing
-    }
+    fn window_event(&mut self, _: &ActiveEventLoop, _: WindowId, _: WindowEvent) {}
 }

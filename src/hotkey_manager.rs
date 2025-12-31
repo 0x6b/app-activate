@@ -70,7 +70,7 @@ impl HotKeyManager {
         }
     }
 
-    pub fn handle(&mut self, event: GlobalHotKeyEvent, conn: Rc<Option<Connection>>) {
+    pub fn handle(&mut self, event: GlobalHotKeyEvent, conn: Option<Rc<Connection>>) {
         debug!("Handling GlobalHotKeyEvent: {event:?}");
         match &mut self.state {
             State::Waiting if event.id == self.leader_key.id() => {
@@ -92,12 +92,10 @@ impl HotKeyManager {
                 };
             }
             State::AwaitingSecondKey { is_secondary, .. } if event.id == self.leader_key.id() => {
-                // Leader key pressed while waiting for second key - swap app sets
                 let current_is_secondary = *is_secondary;
                 self.swap_app_sets(current_is_secondary);
             }
             State::AwaitingSecondKey { is_secondary, .. } => {
-                // Look for the hotkey in the appropriate app set
                 let app_set =
                     if *is_secondary { &self.secondary_applications } else { &self.applications };
 
@@ -108,20 +106,19 @@ impl HotKeyManager {
                         Ok(()) => {
                             debug!("Successfully launched {path:?}");
                             if let Some(conn) = conn.as_ref()
-                                && conn
-                                    .execute(
-                                        "INSERT INTO log (datetime, application) VALUES (?1, ?2)",
-                                        (
-                                            SystemTime::now()
-                                                .duration_since(UNIX_EPOCH)
-                                                .unwrap() // should always success
-                                                .as_secs() as i64,
-                                            path.to_string_lossy(),
-                                        ),
-                                    )
-                                    .is_err()
+                                && let Err(e) = conn.execute(
+                                    "INSERT INTO log (datetime, application) VALUES (?1, ?2)",
+                                    (
+                                        SystemTime::now()
+                                            .duration_since(UNIX_EPOCH)
+                                            .unwrap()
+                                            .as_secs()
+                                            as i64,
+                                        path.to_string_lossy(),
+                                    ),
+                                )
                             {
-                                error!("Failed to insert a log to SQLite database")
+                                error!("Failed to insert a log to SQLite database: {e}");
                             }
                         }
                         Err(err) => error!("Failed to launch {path:?}: {err}"),

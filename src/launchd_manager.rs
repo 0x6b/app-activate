@@ -61,18 +61,18 @@ impl LaunchdManager {
             .as_bytes(),
         )?;
 
-        self.run_launchctl("bootstrap", format!("gui/{id} {}", plist.display()));
-        self.run_launchctl("load", format!("-w {}", plist.display()));
-        self.run_launchctl("enable", format!("gui/{id}/{name}"));
-        self.run_launchctl("start", name.to_string());
+        log_cmd(run_cmd!(launchctl bootstrap gui/$id $plist), "bootstrap");
+        log_cmd(run_cmd!(launchctl load -w $plist), "load");
+        log_cmd(run_cmd!(launchctl enable gui/$id/$name), "enable");
+        log_cmd(run_cmd!(launchctl start $name), "start");
         Ok(())
     }
 
     pub fn unregister(&self) -> Result<()> {
         let (name, plist) = (&self.name, &self.plist);
 
-        self.run_launchctl("stop", name.to_string());
-        self.run_launchctl("unload", format!("-w {}", plist.display()));
+        log_cmd(run_cmd!(launchctl stop $name), "stop");
+        log_cmd(run_cmd!(launchctl unload -w $plist), "unload");
 
         match remove_file(plist) {
             Ok(()) => info!("Removed {plist:?}"),
@@ -80,11 +80,11 @@ impl LaunchdManager {
         }
         Ok(())
     }
+}
 
-    fn run_launchctl(&self, cmd: &str, args: String) {
-        match run_cmd!(launchctl $cmd $args) {
-            Ok(()) => info!("launchctl {cmd} {args}"),
-            Err(why) => warn!("Failed: launchctl {cmd} {args}: {why}"),
-        }
+fn log_cmd(result: std::io::Result<()>, cmd: &str) {
+    match result {
+        Ok(()) => info!("launchctl {cmd}: success"),
+        Err(why) => warn!("launchctl {cmd}: {why}"),
     }
 }

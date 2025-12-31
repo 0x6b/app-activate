@@ -18,24 +18,22 @@ use log::{debug, error};
 pub use usage_reporter::UsageReporter;
 use xdg::BaseDirectories;
 
-pub fn get_config(config: Option<PathBuf>) -> Result<Config> {
-    let path = config.unwrap_or_else(|| {
-        let base_dirs = BaseDirectories::with_prefix("app-activate");
-        let path = base_dirs
-            .place_config_file("config.toml")
-            .expect("Failed to place config file");
-        debug!("Config file not provided. Using default at {path:?}");
-        path
-    });
+fn default_config_path() -> PathBuf {
+    let path = BaseDirectories::with_prefix("app-activate")
+        .place_config_file("config.toml")
+        .expect("Failed to place config file");
+    debug!("Config file not provided. Using default at {path:?}");
+    path
+}
 
+pub fn get_config(config: Option<PathBuf>) -> Result<Config> {
+    let path = config.unwrap_or_else(default_config_path);
     let path = if path.exists() {
         path.canonicalize()?
     } else {
         error!("Config file not found at {path:?}");
         exit(1);
     };
-
     debug!("Reading config file at {path:?}");
-    let config = Config::from(path)?;
-    Ok(config)
+    Config::from(path)
 }

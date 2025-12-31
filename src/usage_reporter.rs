@@ -19,16 +19,17 @@ ORDER BY count DESC
 LIMIT 10
 "#;
 
+struct Row {
+    col1: String,
+    col2: String,
+}
+
 impl UsageReporter {
     pub fn new(config: &Config) -> Result<Self> {
-        let db = match &config.db {
-            Some(db) => db,
-            None => {
-                error!("No database configuration");
-                exit(1)
-            }
+        let Some(db) = &config.db else {
+            error!("No database configuration");
+            exit(1);
         };
-
         Ok(Self { conn: Connection::open(db)? })
     }
 
@@ -42,7 +43,6 @@ impl UsageReporter {
         let list_for_7_days = self.select(&start_of_7_days, &now)?;
         let list_for_30_days = self.select(&start_of_30_days, &now)?;
 
-        // Calculate maximum width for each column
         let width = list_for_day
             .iter()
             .chain(list_for_7_days.iter())
@@ -54,9 +54,7 @@ impl UsageReporter {
         let format = "%Y-%m-%d";
         let now = now.strftime(format);
 
-        // Create headers with dynamic spacing
         println!(" {:width$}  {:width$}  {:width$}", "Today", "Last 7 days", "Last 30 days");
-
         println!(
             " {:width$}  {:width$}  {:width$}",
             format!("{} → {}", &start_of_day.strftime(format), &now),
@@ -64,29 +62,19 @@ impl UsageReporter {
             format!("{} → {}", &start_of_30_days.strftime(format), &now)
         );
 
-        // Zip and format the columns with dynamic spacing
-        let result = list_for_day
+        for ((l, l7), l30) in list_for_day
             .iter()
             .zip(list_for_7_days.iter())
             .zip(list_for_30_days.iter())
-            .map(|((l, l7), l30)| format!("{l:width$}  {l7:width$}  {l30:width$}"))
-            .collect::<Vec<_>>();
-
-        println!("{}", result.join("\n"));
+        {
+            println!("{l:width$}  {l7:width$}  {l30:width$}");
+        }
 
         Ok(())
     }
 
     fn select(&self, since: &Zoned, until: &Zoned) -> Result<Vec<String>> {
-        struct Row {
-            col1: String,
-            col2: String,
-        }
-
-        let mut table = vec![Row {
-            col1: "Application".to_string(),
-            col2: "Count".to_string(),
-        }];
+        let mut table = vec![Row { col1: "Application".into(), col2: "Count".into() }];
 
         table.extend(
             self.conn
@@ -96,40 +84,34 @@ impl UsageReporter {
                     |row| -> Result<Row, Error> {
                         let path: String = row.get(0)?;
                         let count: i64 = row.get(1)?;
-
                         Ok(Row {
                             col1: PathBuf::from(path)
                                 .file_stem()
                                 .unwrap()
                                 .to_string_lossy()
-                                .to_string(),
+                                .into_owned(),
                             col2: count.to_string(),
                         })
                     },
                 )?
-                .filter_map(|row| row.ok())
-                .collect::<Vec<_>>(),
+                .filter_map(Result::ok),
         );
 
-        let col1w = table.iter().max_by_key(|data| data.col1.len()).unwrap().col1.len();
-        let col2w = table.iter().max_by_key(|data| data.col2.len()).unwrap().col2.len() - 1;
+        let col1w = table.iter().map(|r| r.col1.len()).max().unwrap();
+        let col2w = table.iter().map(|r| r.col2.len()).max().unwrap() - 1;
 
         let mut iter = table.into_iter();
         let header = iter.next().unwrap();
 
-        let mut result: Vec<String> = Vec::new();
+        let mut result = Vec::with_capacity(12);
         result.push(format!("| {:col1w$} | {:col2w$} |", header.col1, header.col2));
         result.push(format!(
             "| {s1:col1w$} | {s2:col2w$}: |",
             s1 = "-".repeat(col1w),
             s2 = "-".repeat(col2w),
         ));
-        iter.for_each(|r| result.push(format!("| {:col1w$} | {:>5} |", r.col1, r.col2)));
-
-        // fill the vector until its length equals to 10
-        while result.len() < 12 {
-            result.push(format!("| {:col1w$} | {:>5} |", "-", "-",));
-        }
+        result.extend(iter.map(|r| format!("| {:col1w$} | {:>5} |", r.col1, r.col2)));
+        result.resize_with(12, || format!("| {:col1w$} | {:>5} |", "-", "-"));
 
         Ok(result)
     }

@@ -1,4 +1,5 @@
-use app_activate::{get_config, AppActivator, LaunchdManager};
+use anyhow::Result;
+use app_activate::{AppActivator, LaunchdManager, get_config};
 
 use crate::args::{
     Args,
@@ -7,7 +8,7 @@ use crate::args::{
 
 mod args;
 
-fn main() -> anyhow::Result<()> {
+fn main() -> Result<()> {
     let Args { config, command } = Args::new();
 
     match command {

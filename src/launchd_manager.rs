@@ -1,10 +1,10 @@
 use std::{
-    fs::{remove_file, File},
+    fs::{File, remove_file},
     io::Write,
     path::PathBuf,
 };
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use cmd_lib::{run_cmd, run_fun};
 use dirs::home_dir;
 use log::{info, warn};

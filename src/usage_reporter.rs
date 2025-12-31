@@ -3,7 +3,7 @@ use std::{path::PathBuf, process::exit};
 use anyhow::Result;
 use jiff::{ToSpan, Zoned};
 use log::error;
-use rusqlite::Connection;
+use rusqlite::{Connection, Error};
 
 use crate::Config;
 
@@ -93,7 +93,7 @@ impl UsageReporter {
                 .prepare(REPORT_QUERY)?
                 .query_map(
                     [since.timestamp().as_second(), until.timestamp().as_second()],
-                    |row| -> Result<Row, rusqlite::Error> {
+                    |row| -> Result<Row, Error> {
                         let path: String = row.get(0)?;
                         let count: i64 = row.get(1)?;
 

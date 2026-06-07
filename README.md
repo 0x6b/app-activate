@@ -2,6 +2,10 @@
 
 A minimal application launcher, just for my needs.
 
+> [!NOTE]
+# Your Input
+> Archived the repository in favor of [Switch](https://github.com/0x6b/switch).
+
 ## Features
 
 - Two-shot global hotkeys to launch or activate an app, with the option to log to an SQLite database
@@ -104,8 +108,8 @@ Or you can use the `app-activate-reporter` to see the launch history.
 
 ```console
 $ app-activate-reporter
- Today                      Last 7 days                Last 30 days             
- 2024-11-28 → 2024-11-28    2024-11-21 → 2024-11-28    2024-10-29 → 2024-11-28  
+ Today                      Last 7 days                Last 30 days
+ 2024-11-28 → 2024-11-28    2024-11-21 → 2024-11-28    2024-10-29 → 2024-11-28
 | Application   | Count |  | Application   | Count |  | Application   | Count |
 | ------------- | ----: |  | ------------- | ----: |  | ------------- | ----: |
 | Ghostty       |     5 |  | Slack         |   266 |  | Slack         |   990 |

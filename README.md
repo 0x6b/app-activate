@@ -1,149 +1,125 @@
 # app-activate
 
-A minimal application launcher, just for my needs.
+A small native Windows leader-key launcher. Press the configured leader key,
+then a mapped key. Executables are brought to the foreground when already open
+and launched otherwise; URLs open with their default handler.
 
-> [!NOTE]
-> Archived the repository in favor of [Switch](https://github.com/0x6b/switch).
+The original macOS app in this repository was superseded by
+[Switch](https://github.com/0x6b/switch). This repository has been revived for
+the Windows launcher developed there.
 
-## Features
+## Scope
 
-- Two-shot global hotkeys to launch or activate an app, with the option to log to an SQLite database
-- Double-tap leader key support for secondary application sets
-- Text-based configuration
-- No GUI
+Open-or-activate mappings cover most navigation without a window list. Windows
+keeps standard <kbd>Alt</kbd>+<kbd>Tab</kbd> behavior, while
+[PowerToys Run's Window Walker](https://learn.microsoft.com/en-us/windows/powertoys/run#window-walker-plugin)
+handles occasional title-based searches with its `<` command. app-activate is
+deliberately limited to one leader-key mapping set, executable/URL/packaged-app
+targets, and TOML configuration; it has no GUI, installer, or config auto-reload.
 
-## Usage
+## Requirements
 
-```console
-$ app-activate --help
-Usage: app-activate [OPTIONS] [COMMAND]
+- Windows 11
+- Rust stable with the `x86_64-pc-windows-msvc` toolchain
+- MSVC v143 x64/x86 Build Tools and a Windows 11 SDK (Visual Studio itself is
+  not required)
 
-Commands:
-  start       Start the application. Default if no subcommand is provided
-  register    Register the application to start on login
-  unregister  Unregister the application from starting on login
-  help        Print this message or the help of the given subcommand(s)
+## Build and run
 
-Options:
-  -c, --config <CONFIG>  Path to the configuration file. Defaults to
-                         `$XDG_CONFIG_HOME/app-activate/config.toml`
-  -h, --help             Print help
-  -V, --version          Print version
+```powershell
+cargo build --release
+.\target\release\app-activate.exe
 ```
 
-## How to Install
+For a checkout accessed through a `\\wsl.localhost\...` path, put Cargo output
+on the Windows filesystem because WSL does not support incremental compilation's
+lock:
 
-```console
-$ cargo install --git https://github.com/0x6b/app-activate
+```powershell
+$env:CARGO_TARGET_DIR = "$env:LOCALAPPDATA\app-activate\cargo-target"
+cargo run
 ```
 
-## How to Update
+Set `CARGO_TARGET_DIR` in your PowerShell profile to persist it. Release output
+then lives at `$env:CARGO_TARGET_DIR\release\app-activate.exe`.
 
-```console
-$ git switch main
-$ git pull
-$ cargo x update
+Debug builds (`cargo run`) remain attached to the console, stop with
+<kbd>Ctrl</kbd>+<kbd>C</kbd>, and log target resolution, process matching, and
+activation results. Release builds use the Windows GUI subsystem without a
+console window.
+
+On first run app-activate creates and opens
+`%LOCALAPPDATA%\app-activate\config.toml`. Edit its mappings and run the program
+again. Stop it through Task Manager or `Stop-Process app-activate`.
+
+## Install, update, and start at login
+
+Build and copy the release executable to a stable location. Repeat these same
+commands to update it:
+
+```powershell
+$env:CARGO_TARGET_DIR = "$env:LOCALAPPDATA\app-activate\cargo-target"
+cargo build --release
+
+Stop-Process -Name app-activate -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Force "$env:LOCALAPPDATA\app-activate" | Out-Null
+Copy-Item `
+  "$env:CARGO_TARGET_DIR\release\app-activate.exe" `
+  "$env:LOCALAPPDATA\app-activate\app-activate.exe"
+Start-Process "$env:LOCALAPPDATA\app-activate\app-activate.exe"
 ```
 
-## How to Configure
+Create the current user's Startup shortcut:
 
-Place the configuration file at `$XDG_CONFIG_HOME/app-activate/config.toml`. If `$XDG_CONFIG_HOME` is not set, it defaults to `~/.config/app-activate/config.toml`.
-
-```console
-$ CONFIG_ROOT=~/.config/app-activate
-$ mkdir -p $CONFIG_ROOT
-$ curl -o- https://raw.githubusercontent.com/0x6b/app-activate/refs/heads/main/config.toml > $CONFIG_ROOT/config.toml
-$ $EDITOR $CONFIG_ROOT/config.toml
+```powershell
+$startup = [Environment]::GetFolderPath("Startup")
+$shell = New-Object -ComObject WScript.Shell
+$shortcut = $shell.CreateShortcut("$startup\app-activate.lnk")
+$shortcut.TargetPath = "$env:LOCALAPPDATA\app-activate\app-activate.exe"
+$shortcut.WorkingDirectory = "$env:LOCALAPPDATA\app-activate"
+$shortcut.Save()
 ```
 
-Configure the hotkeys and applications as you like. After the launch, the changes will be picked up automatically. See the [keyboard-types](https://github.com/pyfisch/keyboard-types/blob/v0.7.0/src/key.rs#L991) crate for available keycodes. No modifier keys are supported.
+Remove it to disable startup:
 
-### Application Sets
-
-You can configure two sets of applications:
-
-- **Primary applications** (`[applications]` section): Activated by pressing the leader key once, then an application key
-- **Secondary applications** (`[secondary_applications]` section): Activated by pressing the leader key twice quickly, then an application key
-
-Example workflow:
-
-- Press <kbd>F10</kbd> → press <kbd>c</kbd> → launches Calendar (primary)
-- Press <kbd>F10</kbd> → press <kbd>F10</kbd> again → press <kbd>m</kbd> → launches Mail (secondary)
-
-## How to Use as a System Service
-
-You can use this as a CLI application (the classic UNIX job control method, i.e., `app-activate &`), but you can also run it as a system service. At this moment, it's working on macOS only. Tested on macOS 15.0.1 Sequoia.
-
-```sh
-$ app-activate register
-$ ps -ef | grep app-activate # ~/.cargo/bin/app-activate should be running
+```powershell
+Remove-Item "$([Environment]::GetFolderPath('Startup'))\app-activate.lnk"
 ```
 
-The `register` subcommand expects that:
+## Targets
 
-- the binary to be in the `~/.cargo/bin/app-activate`.
-- the configuration file to be in the `$XDG_CONFIG_HOME/app-activate/config.toml`.
+Use executable paths for classic desktop apps and URLs for the default browser:
 
-Yes, these are hardcoded.
-
-## How to Uninstall
-
-```sh
-$ app-activate unregister # if you have registered it as a system service
-$ cargo uninstall app-activate
+```toml
+[launcher.primary]
+a = 'C:\Program Files\Alacritty\alacritty.exe'
+g = 'https://github.com'
 ```
 
-## Reporting Launch History
+For Microsoft Store and other packaged apps, use a stable Application User
+Model ID (AUMID), not a versioned `WindowsApps` executable path:
 
-If you have configured `db` in the configuration file, launch history will be logged to the SQLite database. You can query the database to see the launch history. The schema is as follows:
-
-```sql
-CREATE TABLE log (
-  datetime INTEGER NOT NULL, -- UNIX timestamp
-  application TEXT NOT NULL  -- path to the application
-);
+```powershell
+Get-StartApps | Where-Object Name -Match "Teams" | Format-Table Name, AppID
 ```
 
-Or you can use the `app-activate-reporter` to see the launch history.
+Prefix the machine's reported `AppID` with `shell:AppsFolder\`:
 
-```console
-$ app-activate-reporter
- Today                      Last 7 days                Last 30 days
- 2024-11-28 → 2024-11-28    2024-11-21 → 2024-11-28    2024-10-29 → 2024-11-28
-| Application   | Count |  | Application   | Count |  | Application   | Count |
-| ------------- | ----: |  | ------------- | ----: |  | ------------- | ----: |
-| Ghostty       |     5 |  | Slack         |   266 |  | Slack         |   990 |
-| Slack         |     3 |  | Google Chrome |   172 |  | Firefox       |   725 |
-| Google Meet   |     2 |  | Firefox       |   155 |  | Ghostty       |   560 |
-| Firefox       |     2 |  | Ghostty       |   152 |  | Google Chrome |   549 |
-| RustRover     |     1 |  | Wezlix        |    50 |  | Wezlix        |   304 |
-| Google Chrome |     1 |  | RustRover     |    44 |  | RustRover     |   111 |
-| -             |     - |  | Google Meet   |    34 |  | Google Meet   |    98 |
-| -             |     - |  | Calendar      |    25 |  | Notion        |    90 |
-| -             |     - |  | Zed           |    18 |  | Calendar      |    69 |
-| -             |     - |  | Notion        |    16 |  | Zed           |    58 |
+```toml
+[launcher.primary]
+t = 'shell:AppsFolder\MSTeams_8wekyb3d8bbwe!MSTeams'
 ```
 
-## How to Contribute
+Running packaged apps are matched by AUMID and brought to the foreground. If no
+matching window exists, the target is opened through Windows Shell. The leader
+key and mapped keys are consumed globally. Modified combinations and unmapped
+keys pass through; modifiers also cancel an in-progress sequence.
 
-This is my launcher. I’ll maintain it as long as it meets my needs, or until I find a better alternative. I’m not looking for contributions, but I’m sharing the code in case it helps someone else. Please feel free to fork it and modify it however you like. I'm not interested in making this:
+## Project
 
-- more capable
-- more configurable
-- more user-friendly
-- more attractive
-- more popular
-- GUI-based
-- cross-platform (beyond my future use)
-
-There should be similar and/or more capable tools available in every language and platform, so if you have a better option, feel free to keep using that.
-
-## Motivation
-
-I'm a big fan of [Apptivate](http://www.apptivateapp.com/) (macOS app) as it allows me to quickly launch apps using keyboard shortcuts. It's a simple, beautiful way to create global hotkeys for my applications, as exactly advertised.
-
-However, the last update was back in [2020-12-29](https://x.com/apptivateapp/status/1343810481417551872) and the future of the app is uncertain. Although, at this time of writing, it's totally working fine on my macOS 15.0.1 Sequoia, I wanted to create a plan B in case it stops working in the future. This repository is my attempt to create a similar app using Rust, just solely for my own use case.
+This remains a narrow personal launcher shared in case it is useful. It is not
+intended to become cross-platform, GUI-based, or broadly configurable.
 
 ## License
 
-MIT. See [LICENSE](LICENSE) for more details.
+MIT. See [LICENSE](LICENSE).

@@ -1,0 +1,12 @@
+[launcher]
+# Supported names include CapsLock, ScrollLock, Pause, Insert, Home, End,
+# PageUp, PageDown, F1-F24, A-Z, 0-9, and VK_XX hexadecimal virtual-key codes.
+leader = "CapsLock"
+timeout_ms = 600
+
+[launcher.primary]
+# An executable is activated if already running, otherwise launched.
+# URLs and other shell targets are opened with the Windows default handler.
+b = 'C:\Program Files\Google\Chrome\Application\chrome.exe'
+e = 'C:\Users\you\AppData\Local\Programs\Microsoft VS Code\Code.exe'
+g = 'https://github.com'

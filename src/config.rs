@@ -1,102 +1,117 @@
-use std::{
-    collections::BTreeMap,
-    fmt::Debug,
-    fs::read_to_string,
-    path::{Path, PathBuf},
-    process::exit,
-    str::FromStr,
-    sync::mpsc::Sender,
-    time::{Duration, Instant},
-};
+use std::{collections::HashMap, fs::read_to_string, path::Path};
 
-use anyhow::Result;
-use global_hotkey::hotkey::{Code, HotKey};
-use notify::{Event, RecommendedWatcher, Watcher, recommended_watcher};
 use serde::Deserialize;
 use toml::from_str;
 
 #[derive(Debug, Deserialize)]
 pub struct Config {
-    pub leader_key: String,
-    pub applications: BTreeMap<String, PathBuf>,
-    #[serde(default)]
-    pub secondary_applications: BTreeMap<String, PathBuf>,
-    pub timeout_ms: u64,
-    pub db: Option<PathBuf>,
-    #[serde(skip)]
-    pub(crate) path: PathBuf,
+    pub launcher: LauncherConfig,
 }
 
-fn normalize_key(key: &str) -> String {
-    if let Some(c) = key.chars().next() {
-        if key.len() == 1 && c.is_ascii_alphabetic() {
-            return format!("Key{}", c.to_ascii_uppercase());
-        }
-        if key.len() == 1 && c.is_ascii_digit() {
-            return format!("Digit{c}");
-        }
-    }
-    key.to_string()
+#[derive(Debug, Deserialize)]
+pub struct LauncherConfig {
+    pub leader: String,
+    #[serde(default = "default_timeout")]
+    pub timeout_ms: u64,
+    #[serde(default)]
+    pub primary: HashMap<String, String>,
+}
+
+fn default_timeout() -> u64 {
+    600
 }
 
 impl Config {
-    pub fn from<P>(path: P) -> Result<Self>
-    where
-        P: AsRef<Path> + Debug,
-    {
-        let config_str = read_to_string(&path).unwrap_or_else(|why| {
-            eprintln!("Failed to read config file at {path:?}: {why}");
-            exit(1);
-        });
-
-        let mut config = from_str::<Config>(&config_str).unwrap_or_else(|why| {
-            eprintln!("Failed to parse config file: {why}");
-            exit(1);
-        });
-
-        config.path = path.as_ref().to_path_buf();
+    pub fn load(path: &Path) -> Result<Self, String> {
+        let text = read_to_string(path)
+            .map_err(|error| format!("Could not read {}: {error}", path.display()))?;
+        let config: Self =
+            from_str(&text).map_err(|error| format!("Invalid {}: {error}", path.display()))?;
+        if !(100..=5_000).contains(&config.launcher.timeout_ms) {
+            return Err("launcher.timeout_ms must be between 100 and 5000".into());
+        }
         Ok(config)
     }
+}
 
-    pub fn applications(&self) -> Vec<(HotKey, PathBuf)> {
-        Self::process_applications(&self.applications)
+pub fn virtual_key(name: &str) -> Result<u32, String> {
+    let upper = name.trim().to_ascii_uppercase();
+    if upper.len() == 1 {
+        let byte = upper.as_bytes()[0];
+        if byte.is_ascii_alphanumeric() {
+            return Ok(u32::from(byte));
+        }
+    }
+    if let Some(hex) = upper.strip_prefix("VK_") {
+        return u32::from_str_radix(hex, 16).map_err(|_| format!("invalid virtual key: {name}"));
+    }
+    let key = match upper.as_str() {
+        "CAPSLOCK" => 0x14,
+        "SCROLLLOCK" => 0x91,
+        "PAUSE" => 0x13,
+        "INSERT" => 0x2D,
+        "HOME" => 0x24,
+        "END" => 0x23,
+        "PAGEUP" => 0x21,
+        "PAGEDOWN" => 0x22,
+        _ if upper.starts_with('F') => upper[1..]
+            .parse::<u32>()
+            .ok()
+            .filter(|number| (1..=24).contains(number))
+            .map(|number| 0x6F + number)
+            .ok_or_else(|| format!("unsupported key name: {name}"))?,
+        _ => return Err(format!("unsupported key name: {name}")),
+    };
+    Ok(key)
+}
+
+#[cfg(test)]
+mod tests {
+    #[cfg(test)]
+    use std::env::temp_dir;
+    #[cfg(test)]
+    use std::fs::remove_file;
+    use std::{fs::write, process::id};
+
+    use toml::from_str;
+
+    use super::*;
+
+    #[test]
+    fn parses_named_and_character_keys() {
+        assert_eq!(virtual_key("CapsLock").unwrap(), 0x14);
+        assert_eq!(virtual_key("g").unwrap(), u32::from(b'G'));
+        assert_eq!(virtual_key("F12").unwrap(), 0x7B);
+        assert_eq!(virtual_key("VK_BA").unwrap(), 0xBA);
     }
 
-    pub fn secondary_applications(&self) -> Vec<(HotKey, PathBuf)> {
-        Self::process_applications(&self.secondary_applications)
+    #[test]
+    fn parses_launcher_table() {
+        let config: Config = from_str(
+            "[launcher]\nleader = \"CapsLock\"\n[launcher.primary]\ng = \"https://github.com\"",
+        )
+        .unwrap();
+        assert_eq!(config.launcher.leader, "CapsLock");
+        assert_eq!(config.launcher.timeout_ms, 600);
+        assert_eq!(config.launcher.primary["g"], "https://github.com");
     }
 
-    pub fn watch(&self, tx: Sender<()>) -> notify::Result<RecommendedWatcher> {
-        let mut last_event = None;
-        let debounce_duration = Duration::from_millis(100);
+    #[test]
+    fn rejects_timeout_outside_supported_range() {
+        let path = temp_dir().join(format!("app-activate-config-{}.toml", id()));
+        write(
+            &path,
+            r#"
+                [launcher]
+                leader = "CapsLock"
+                timeout_ms = 99
+            "#,
+        )
+        .unwrap();
 
-        let mut watcher = recommended_watcher(move |result: Result<Event, _>| {
-            let Ok(event) = result else { return };
-            if !event.kind.is_modify() {
-                return;
-            }
-            let now = Instant::now();
-            if let Some(last) = last_event
-                && now.duration_since(last) < debounce_duration
-            {
-                return;
-            }
-            last_event = Some(now);
-            let _ = tx.send(());
-        })?;
+        let result = Config::load(&path);
+        remove_file(path).unwrap();
 
-        let watch_path = self.path.parent().unwrap_or(&self.path);
-        watcher.watch(watch_path, notify::RecursiveMode::NonRecursive)?;
-
-        Ok(watcher)
-    }
-
-    fn process_applications(apps: &BTreeMap<String, PathBuf>) -> Vec<(HotKey, PathBuf)> {
-        apps.iter()
-            .map(|(key, path)| {
-                let key = normalize_key(key);
-                (HotKey::new(None, Code::from_str(&key).unwrap()), path.clone())
-            })
-            .collect()
+        assert_eq!(result.unwrap_err(), "launcher.timeout_ms must be between 100 and 5000");
     }
 }

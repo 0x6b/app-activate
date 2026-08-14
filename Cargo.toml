@@ -1,77 +1,30 @@
 [package]
 name = "app-activate"
-version.workspace = true
-edition.workspace = true
-description = "A minimal application launcher, just for my needs."
-default-run = "app-activate"
+version = "0.9.0"
+edition = "2024"
+description = "A native Windows leader-key open-or-activate launcher."
+license = "MIT"
 
 [[bin]]
 name = "app-activate"
 path = "src/main.rs"
 
-[[bin]]
-name = "app-activate-reporter"
-path = "src/reporter.rs"
-
-[workspace]
-members = ["xtask"]
-
-[workspace.package]
-version = "0.8.2"
-edition = "2024"
-
-[workspace.dependencies]
-# Error handling
-anyhow = "1.0.100"
-
-# CLI parsing
-clap = { version = "4.5.53", features = ["derive"] }
-
-# Run shell command easily
-cmd_lib = "2.0.0"
-
-# Logging
-env_logger = { version = "0.11.8", default-features = false, features = ["humantime"] }
-log = "0.4.29"
-
 [dependencies]
-# Error handling
-anyhow.workspace = true
+serde = { version = "1", features = ["derive"] }
+toml = "0.9"
 
-# CLI parsing
-clap.workspace = true
-
-# Run shell command easily
-cmd_lib.workspace = true
-
-# Home and XDG directories. Could be consolidated
-dirs = "6.0.0"
-xdg = "3.0.0"
-
-# Logging
-env_logger.workspace = true
-log.workspace = true
-
-# Event loop, hotkey registration and management, and open app
-winit = { version = "0.30.12", default-features = false, features = ["rwh_06"] }
-global-hotkey = { version = "0.7.0", default-features = false }
-open = "5.3.3"
-
-# File system watcher
-notify = "8.2.0"
-
-# Ser/de
-serde = "1.0.219"
-toml = { version = "0.9.10", default-features = false, features = ["parse", "serde"] }
-
-# SQLite3 for logging and reporting
-rusqlite = { version = "0.38.0", features = ["bundled"] }
-
-# Date and time
-jiff = "0.2.17"
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_Storage_Packaging_Appx",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Threading",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+] }
 
 [profile.release]
-# For speed. See also .cargo/config.toml
-lto = true
-codegen-units = 1
-panic = "abort"
+lto = "thin"
+strip = true

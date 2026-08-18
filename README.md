@@ -96,6 +96,23 @@ a = 'C:\Program Files\Alacritty\alacritty.exe'
 g = 'https://github.com'
 ```
 
+Set `cwd` in the launcher table to choose the default working directory when an
+application is started. Use the expanded mapping form to override it for one
+application:
+
+```toml
+[launcher]
+cwd = 'C:\Users\you'
+
+[launcher.primary]
+a = 'C:\Program Files\Alacritty\alacritty.exe'
+e = { target = 'C:\Users\you\AppData\Local\Programs\Microsoft VS Code\Code.exe', cwd = 'C:\src\project' }
+```
+
+A mapping without its own `cwd` uses the launcher-level value. If neither is
+configured, the launcher's working directory is unchanged. Activating an
+already-running application does not change its working directory.
+
 For Microsoft Store and other packaged apps, use a stable Application User
 Model ID (AUMID), not a versioned `WindowsApps` executable path:
 

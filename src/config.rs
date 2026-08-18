@@ -1,4 +1,8 @@
-use std::{collections::HashMap, fs::read_to_string, path::Path};
+use std::{
+    collections::HashMap,
+    fs::read_to_string,
+    path::{Path, PathBuf},
+};
 
 use serde::Deserialize;
 use toml::from_str;
@@ -13,8 +17,32 @@ pub struct LauncherConfig {
     pub leader: String,
     #[serde(default = "default_timeout")]
     pub timeout_ms: u64,
+    pub cwd: Option<PathBuf>,
     #[serde(default)]
-    pub primary: HashMap<String, String>,
+    pub primary: HashMap<String, ApplicationConfig>,
+}
+
+#[derive(Debug, Deserialize)]
+#[derive(PartialEq, Eq)]
+#[serde(untagged)]
+pub enum ApplicationConfig {
+    Target(String),
+    Settings { target: String, cwd: Option<PathBuf> },
+}
+
+impl ApplicationConfig {
+    pub fn target(&self) -> &str {
+        match self {
+            Self::Target(target) | Self::Settings { target, .. } => target,
+        }
+    }
+
+    pub fn cwd(&self) -> Option<&Path> {
+        match self {
+            Self::Target(_) => None,
+            Self::Settings { cwd, .. } => cwd.as_deref(),
+        }
+    }
 }
 
 fn default_timeout() -> u64 {
@@ -93,7 +121,35 @@ mod tests {
         .unwrap();
         assert_eq!(config.launcher.leader, "CapsLock");
         assert_eq!(config.launcher.timeout_ms, 600);
-        assert_eq!(config.launcher.primary["g"], "https://github.com");
+        assert_eq!(config.launcher.primary["g"].target(), "https://github.com");
+    }
+
+    #[test]
+    fn application_cwd_overrides_global_cwd() {
+        let config: Config = from_str(
+            r#"
+                [launcher]
+                leader = "CapsLock"
+                cwd = 'C:\Users\you'
+
+                [launcher.primary]
+                a = { target = 'C:\Tools\app.exe', cwd = 'C:\work' }
+                b = { target = 'C:\Tools\other.exe' }
+            "#,
+        )
+        .unwrap();
+
+        assert_eq!(config.launcher.cwd, Some(PathBuf::from(r"C:\Users\you")));
+        assert_eq!(config.launcher.primary["a"].cwd(), Some(Path::new(r"C:\work")));
+        assert_eq!(config.launcher.primary["b"].cwd(), None);
+        assert_eq!(
+            config.launcher.primary["a"].cwd().or(config.launcher.cwd.as_deref()),
+            Some(Path::new(r"C:\work"))
+        );
+        assert_eq!(
+            config.launcher.primary["b"].cwd().or(config.launcher.cwd.as_deref()),
+            Some(Path::new(r"C:\Users\you"))
+        );
     }
 
     #[test]

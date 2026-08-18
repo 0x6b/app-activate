@@ -35,11 +35,11 @@ use windows::{
 use crate::{
     activator,
     config::{Config, virtual_key},
-    decoder::{Action, Decoder},
+    decoder::{Action, Decoder, Launch},
 };
 
 static DECODER: OnceLock<Mutex<Decoder>> = OnceLock::new();
-static LAUNCHER: OnceLock<Sender<String>> = OnceLock::new();
+static LAUNCHER: OnceLock<Sender<Launch>> = OnceLock::new();
 
 pub fn run() -> Result<(), String> {
     let instance_name = wide("Local\\app-activate.Windows");
@@ -55,7 +55,7 @@ pub fn run() -> Result<(), String> {
     let path = config_path()?;
     if !path.exists() {
         create_config(&path)?;
-        activator::open_shell(&path.to_string_lossy());
+        activator::open_shell(&path.to_string_lossy(), None);
         return Ok(());
     }
     let config = Config::load(&path)?;
@@ -64,7 +64,15 @@ pub fn run() -> Result<(), String> {
         .launcher
         .primary
         .iter()
-        .map(|(key, target)| virtual_key(key).map(|key| (key, target.clone())))
+        .map(|(key, application)| {
+            virtual_key(key).map(|key| {
+                let cwd = application
+                    .cwd()
+                    .or(config.launcher.cwd.as_deref())
+                    .map(Path::to_path_buf);
+                (key, Launch { target: application.target().to_owned(), cwd })
+            })
+        })
         .collect::<Result<HashMap<_, _>, _>>()?;
     debug_log!(
         "loaded {} mapping(s) from {}; leader=0x{leader:02X}",
@@ -80,9 +88,13 @@ pub fn run() -> Result<(), String> {
         .set(sender)
         .map_err(|_| "launcher worker was already initialized".to_string())?;
     spawn(move || {
-        while let Ok(target) = receiver.recv() {
-            debug_log!("resolved launcher target: {target}");
-            activator::open_or_activate(&target);
+        while let Ok(application) = receiver.recv() {
+            debug_log!(
+                "resolved launcher target: {}; cwd={:?}",
+                application.target,
+                application.cwd
+            );
+            activator::open_or_activate(&application.target, application.cwd.as_deref());
         }
     });
 

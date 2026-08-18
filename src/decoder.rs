@@ -1,25 +1,32 @@
 use std::{
     collections::{HashMap, HashSet},
+    path::PathBuf,
     time::{Duration, Instant},
 };
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Launch {
+    pub target: String,
+    pub cwd: Option<PathBuf>,
+}
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Action {
     PassThrough,
     Consume,
-    Launch(String),
+    Launch(Launch),
 }
 
 pub struct Decoder {
     leader: u32,
     timeout: Duration,
-    mappings: HashMap<u32, String>,
+    mappings: HashMap<u32, Launch>,
     deadline: Option<Instant>,
     consumed_keys: HashSet<u32>,
 }
 
 impl Decoder {
-    pub fn new(leader: u32, timeout_ms: u64, mappings: HashMap<u32, String>) -> Self {
+    pub fn new(leader: u32, timeout_ms: u64, mappings: HashMap<u32, Launch>) -> Self {
         Self {
             leader,
             timeout: Duration::from_millis(timeout_ms),
@@ -72,8 +79,12 @@ impl Decoder {
 mod tests {
     use super::*;
 
+    fn launch() -> Launch {
+        Launch { target: "target".into(), cwd: None }
+    }
+
     fn decoder() -> Decoder {
-        Decoder::new(0x14, 600, HashMap::from([(u32::from(b'G'), "target".into())]))
+        Decoder::new(0x14, 600, HashMap::from([(u32::from(b'G'), launch())]))
     }
 
     #[test]
@@ -81,7 +92,7 @@ mod tests {
         let now = Instant::now();
         let mut decoder = decoder();
         assert_eq!(decoder.key_down(0x14, false, now), Action::Consume);
-        assert_eq!(decoder.key_down(u32::from(b'G'), false, now), Action::Launch("target".into()));
+        assert_eq!(decoder.key_down(u32::from(b'G'), false, now), Action::Launch(launch()));
     }
 
     #[test]
@@ -122,7 +133,7 @@ mod tests {
         let mut decoder = decoder();
         decoder.key_down(0x14, false, now);
         decoder.key_up(0x14);
-        assert_eq!(decoder.key_down(u32::from(b'G'), false, now), Action::Launch("target".into()));
+        assert_eq!(decoder.key_down(u32::from(b'G'), false, now), Action::Launch(launch()));
         assert_eq!(decoder.key_down(u32::from(b'G'), false, now), Action::Consume);
         assert!(decoder.key_up(u32::from(b'G')));
         assert_eq!(decoder.key_down(u32::from(b'G'), false, now), Action::PassThrough);

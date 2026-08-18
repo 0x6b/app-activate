@@ -1,4 +1,8 @@
-use std::{env::current_dir, path::PathBuf};
+use std::{
+    env::current_dir,
+    os::windows::ffi::OsStrExt,
+    path::{Path, PathBuf},
+};
 
 use windows::{
     Win32::{
@@ -25,7 +29,7 @@ use windows::{
 
 use crate::target::{self, Target};
 
-pub fn open_or_activate(target: &str) {
+pub fn open_or_activate(target: &str, cwd: Option<&Path>) {
     match target::classify(target) {
         Target::PackagedApp(app_id) => {
             debug_log!("opening packaged target; app_id={app_id}");
@@ -36,7 +40,7 @@ pub fn open_or_activate(target: &str) {
         }
         Target::Executable(path) => {
             debug_log!("opening target; executable=true, target={target}");
-            if activate_executable(path) {
+            if activate_executable(path, cwd) {
                 return;
             }
             debug_log!("no running window activated; falling back to ShellExecuteW");
@@ -45,14 +49,16 @@ pub fn open_or_activate(target: &str) {
             debug_log!("opening target; executable=false, target={target}");
         }
     }
-    open_shell(target);
+    open_shell(target, cwd);
 }
 
-fn activate_executable(executable: &std::path::Path) -> bool {
+fn activate_executable(executable: &Path, cwd: Option<&Path>) -> bool {
     let expected = if executable.is_absolute() {
         executable.to_path_buf()
     } else {
-        current_dir().unwrap_or_default().join(executable)
+        cwd.map(Path::to_path_buf)
+            .unwrap_or_else(|| current_dir().unwrap_or_default())
+            .join(executable)
     };
     activate_window(WindowTarget::Executable(expected))
 }
@@ -207,15 +213,17 @@ fn process_application_id(process_id: u32) -> Result<Option<String>, String> {
     Ok(Some(String::from_utf16_lossy(&buffer[..value_length])))
 }
 
-pub fn open_shell(target: &str) {
+pub fn open_shell(target: &str, cwd: Option<&Path>) {
     let target = wide(target);
+    let cwd = cwd.map(wide_path);
+    let cwd = cwd.as_ref().map_or(PCWSTR::null(), |cwd| PCWSTR(cwd.as_ptr()));
     let result = unsafe {
         ShellExecuteW(
             None,
             PCWSTR::null(),
             PCWSTR(target.as_ptr()),
             PCWSTR::null(),
-            PCWSTR::null(),
+            cwd,
             SW_SHOWNORMAL,
         )
     };
@@ -224,4 +232,8 @@ pub fn open_shell(target: &str) {
 
 fn wide(value: &str) -> Vec<u16> {
     value.encode_utf16().chain(Some(0)).collect()
+}
+
+fn wide_path(value: &Path) -> Vec<u16> {
+    value.as_os_str().encode_wide().chain(Some(0)).collect()
 }

@@ -3,6 +3,8 @@
 # PageUp, PageDown, F1-F24, A-Z, 0-9, and VK_XX hexadecimal virtual-key codes.
 leader = "CapsLock"
 timeout_ms = 600
+# Default working directory for applications without their own cwd.
+# cwd = 'C:\Users\you'
 
 [launcher.primary]
 # An executable is activated if already running, otherwise launched.
@@ -10,3 +12,5 @@ timeout_ms = 600
 b = 'C:\Program Files\Google\Chrome\Application\chrome.exe'
 e = 'C:\Users\you\AppData\Local\Programs\Microsoft VS Code\Code.exe'
 g = 'https://github.com'
+# An application-specific cwd overrides the default above.
+t = { target = 'C:\Program Files\Alacritty\alacritty.exe', cwd = 'C:\src\project' }
